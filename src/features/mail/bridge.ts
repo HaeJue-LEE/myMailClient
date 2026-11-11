@@ -1,0 +1,263 @@
+import type {
+  Contact,
+  MailLabel,
+  MailThread,
+  SendAsAddress,
+  ThreadPage,
+} from "@/features/mail/types";
+import type {
+  Account,
+  MailAccountInput,
+  MailAccountSettings,
+} from "@/features/mail/mail-accounts";
+
+/** Contract between the renderer and the Electron main process. */
+
+export type { Account };
+
+export type MailErrorCode =
+  | "unauthorized"
+  | "invalid_request"
+  | "gmail_error"
+  /** Gmail's per-minute quota is used up even after retries; try again shortly. */
+  | "rate_limited"
+  /** Signed in before a newer permission (e.g. contacts) was requested. */
+  | "missing_scope"
+  /** A Google API the feature needs (e.g. People) is off in the Cloud project. */
+  | "api_disabled"
+  | "login_cancelled"
+  /** An IMAP account's server refused the user name or password. */
+  | "auth_failed"
+  /** An IMAP account's server could not be reached (address, port, security, network). */
+  | "connection_failed"
+  /** As the two above, for the outgoing (SMTP) server. */
+  | "smtp_auth_failed"
+  | "smtp_connection_failed"
+  /** The mail server refused the request, e.g. a recipient or a missing folder. */
+  | "server_error"
+  | "internal_error";
+
+export type IpcResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: MailErrorCode };
+
+/** A file picked in the app, sent as bytes. */
+export type FileAttachment = {
+  kind: "file";
+  filename: string;
+  mimeType: string;
+  data: Uint8Array;
+};
+
+/**
+ * An attachment of an existing Gmail message (e.g. when forwarding). The main
+ * process downloads it while building the message, so its bytes never pass
+ * through the renderer.
+ */
+export type GmailAttachment = {
+  kind: "gmail";
+  messageId: string;
+  attachmentId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+};
+
+export type ComposeAttachment = FileAttachment | GmailAttachment;
+
+/** One shape for sending and (later) saving drafts, so the two cannot drift. */
+export type SendMessageInput = {
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  /** Plain-text body; also the alternative part when `html` is set. */
+  text: string;
+  html?: string;
+  /** A verified send-as address; Gmail's default sender when omitted. */
+  from?: string;
+  attachments?: ComposeAttachment[];
+  /** Replies: keeps the message in the original conversation. */
+  threadId?: string;
+  inReplyTo?: string;
+  references?: string;
+  /** The draft this message was saved as; sending it sends (and removes) the draft. */
+  draftId?: string;
+};
+
+/** A saved draft, opened to keep writing it. */
+export type DraftContent = {
+  draftId: string;
+  /** Address headers as stored in the draft. */
+  from: string;
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  /** Untrusted until sanitized for the editor. */
+  html: string | null;
+  text: string | null;
+  /** Downloaded, so later saves do not depend on the draft's old message. */
+  attachments: FileAttachment[];
+  threadId?: string;
+  inReplyTo?: string;
+  references?: string;
+};
+
+/** Gmail's attachment limit is 25 MB; base64 and the body need headroom. */
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+export type MailMethods = {
+  /** The account in use; null when no account has been added. */
+  getAccount: () => Account | null;
+  /** Every account added: the Google account and IMAP accounts. */
+  listAccounts: () => Account[];
+  /** Switches the account in use. */
+  setActiveAccount: (input: { id: string }) => Account;
+  /**
+   * Adds (or signs in again to) the Google account and switches to it. Opens
+   * the system browser and resolves once Google redirects back.
+   */
+  login: () => Account;
+  /** Removes an account from the app: signs out of Google, or forgets an IMAP account. */
+  removeAccount: (input: { id: string }) => null;
+  /**
+   * Asks for an image file and makes it the account's picture (shown instead
+   * of its first letter). `changed` is false when the dialog is cancelled.
+   */
+  chooseAccountAvatar: (input: { id: string }) => { changed: boolean };
+  /** Goes back to showing the account's first letter. */
+  removeAccountAvatar: (input: { id: string }) => null;
+  /**
+   * Sets the order accounts are listed in: every account id, in that order.
+   * Returns the accounts in their new order.
+   */
+  setAccountOrder: (input: { ids: string[] }) => Account[];
+  /** An IMAP account's settings, to edit them. */
+  getMailAccount: (input: { id: string }) => MailAccountSettings;
+  /**
+   * Adds an IMAP account, or changes one (`id`). Signs in to both servers
+   * first and stores nothing when either refuses.
+   */
+  saveMailAccount: (input: MailAccountInput) => Account;
+  listLabels: () => MailLabel[];
+  /** Lists a label, or searches with Gmail query syntax (`query`); at least one is required. */
+  listThreads: (input: {
+    labelId?: string;
+    query?: string;
+    pageToken?: string;
+  }) => ThreadPage;
+  getThread: (input: { threadId: string }) => MailThread;
+  /**
+   * Opens a thread of the account in use in a window of its own (or brings
+   * forward the one already showing it).
+   */
+  openThreadWindow: (input: {
+    threadId: string;
+    /** The label it was opened from; decides its actions (e.g. restore in Trash). */
+    labelId?: string;
+  }) => null;
+  /**
+   * Opens the compose page `href` (`/mail/compose?…`: a new message, a reply,
+   * or a draft) for the account in use in a window of its own.
+   */
+  openComposeWindow: (input: { href: string }) => null;
+  modifyThreads: (input: {
+    threadIds: string[];
+    addLabelIds?: string[];
+    removeLabelIds?: string[];
+  }) => null;
+  /** Moves threads to Trash (recoverable for 30 days). */
+  trashThreads: (input: { threadIds: string[] }) => null;
+  untrashThreads: (input: { threadIds: string[] }) => null;
+  sendMessage: (input: SendMessageInput) => { id: string; threadId: string };
+  /** Addresses the account may send from (its own and verified Gmail aliases). */
+  listSendAs: () => SendAsAddress[];
+  /** Creates or updates (with `draftId`) a Gmail draft. Recipients may be empty. */
+  saveDraft: (input: SendMessageInput) => { draftId: string };
+  /** Deletes a draft permanently (it is never sent). */
+  deleteDraft: (input: { draftId: string }) => null;
+  /** The draft whose message is `messageId` (e.g. opened from the Drafts list). */
+  openDraft: (input: { messageId: string }) => DraftContent;
+  /**
+   * Asks where to save a received attachment and writes it there.
+   * `saved` is false when the user cancels the dialog.
+   */
+  saveAttachment: (input: {
+    messageId: string;
+    attachmentId: string;
+    filename: string;
+  }) => { saved: boolean; filename?: string };
+  /**
+   * Google Contacts plus Google's "Other contacts", merged by address. Shared
+   * by every account: read from the Google account whichever one is in use,
+   * and empty when there is no Google account.
+   */
+  listContacts: () => Contact[];
+  /** Saves a contact to Google Contacts. */
+  createContact: (input: { name: string; email: string }) => Contact;
+  /**
+   * Renames a saved person and changes one of their addresses (`email` →
+   * `newEmail`); returns all of that person's contacts as saved.
+   */
+  updateContact: (input: {
+    resourceName: string;
+    email: string;
+    name: string;
+    newEmail: string;
+  }) => Contact[];
+  /** Deletes a saved person, with all of their addresses. */
+  deleteContact: (input: { resourceName: string }) => null;
+  /** Addresses hidden from the contact list, for every account (stored locally). */
+  getHiddenContacts: () => string[];
+  /** Hides or shows addresses; returns the updated hidden list. */
+  setContactsHidden: (input: { emails: string[]; hidden: boolean }) => string[];
+};
+
+export type MailApi = {
+  [K in keyof MailMethods]: (
+    ...args: Parameters<MailMethods[K]>
+  ) => Promise<IpcResult<ReturnType<MailMethods[K]>>>;
+};
+
+export const MAIL_METHODS = [
+  "getAccount",
+  "listAccounts",
+  "setActiveAccount",
+  "login",
+  "removeAccount",
+  "chooseAccountAvatar",
+  "removeAccountAvatar",
+  "setAccountOrder",
+  "getMailAccount",
+  "saveMailAccount",
+  "listLabels",
+  "listThreads",
+  "getThread",
+  "openThreadWindow",
+  "openComposeWindow",
+  "modifyThreads",
+  "trashThreads",
+  "untrashThreads",
+  "sendMessage",
+  "listSendAs",
+  "saveDraft",
+  "deleteDraft",
+  "openDraft",
+  "saveAttachment",
+  "listContacts",
+  "createContact",
+  "updateContact",
+  "deleteContact",
+  "getHiddenContacts",
+  "setContactsHidden",
+] as const satisfies readonly (keyof MailMethods)[];
+
+export const channelOf = (method: keyof MailMethods) => `mail:${method}`;
+
+declare global {
+  interface Window {
+    /** Present only inside the Electron window, injected by the preload script. */
+    mailApi?: MailApi;
+  }
+}
