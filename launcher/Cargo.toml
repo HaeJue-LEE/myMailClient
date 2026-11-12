@@ -1,6 +1,6 @@
 [package]
 name = "mailclient-launcher"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 publish = false
 description = "Unpacks Mail Client next to itself on first run, then starts it"
