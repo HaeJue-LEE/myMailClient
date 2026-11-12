@@ -69,6 +69,13 @@ import { dropImap, verifyImap } from "./imap/connection";
 import { verifySmtp } from "./imap/smtp";
 import { verifyPop3 } from "./pop3/client";
 import { removeLocalStore } from "./pop3/store";
+import {
+  cancelScheduled,
+  listScheduled,
+  rescheduleSend,
+  scheduleSend,
+  sendScheduledNow,
+} from "./scheduled";
 import { SHORTCUT_PLACES, setShortcut, shortcutStatus } from "./shortcuts";
 import {
   cancelUpdateDownload,
@@ -405,6 +412,32 @@ export function registerMailHandlers(options: {
     sendMessage: {
       input: composeSchema.extend({ to: addresses.min(1) }),
       run: async (input) => (await backend()).sendMessage(input),
+    },
+    scheduleSend: {
+      input: composeSchema.extend({ to: addresses.min(1), sendAt: z.number().int() }),
+      run: async ({ sendAt, ...message }) => {
+        const { account, backend } = await requireBackend();
+        return scheduleSend(account, backend, message, sendAt);
+      },
+    },
+    listScheduled: {
+      input: noInput,
+      run: listScheduled,
+    },
+    rescheduleSend: {
+      input: z.object({ id: z.string().uuid(), sendAt: z.number().int() }),
+      run: ({ id, sendAt }) => rescheduleSend(id, sendAt),
+    },
+    sendScheduledNow: {
+      input: z.object({ id: z.string().uuid() }),
+      run: async ({ id }) => {
+        await sendScheduledNow(id);
+        return null;
+      },
+    },
+    cancelScheduled: {
+      input: z.object({ id: z.string().uuid(), discard: z.boolean().optional() }),
+      run: ({ id, discard }) => cancelScheduled(id, { discard: discard ?? false }),
     },
     saveDraft: {
       // Unlike sending, a draft may have no recipients yet.

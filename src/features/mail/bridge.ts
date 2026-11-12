@@ -10,6 +10,7 @@ import type {
   MailAccountInput,
   MailAccountSettings,
 } from "@/features/mail/mail-accounts";
+import type { ScheduledMail } from "@/features/mail/scheduled";
 import type { ZohoRegion } from "@/features/mail/zoho";
 
 /** Contract between the renderer and the Electron main process. */
@@ -256,6 +257,21 @@ export type MailMethods = {
   trashThreads: (input: { threadIds: string[] }) => null;
   untrashThreads: (input: { threadIds: string[] }) => null;
   sendMessage: (input: SendMessageInput) => { id: string; threadId: string };
+  /**
+   * Keeps the message (from the account in use) to be sent at `sendAt`
+   * (epoch ms). Its draft, if any, is deleted: the scheduled copy replaces it.
+   */
+  scheduleSend: (input: SendMessageInput & { sendAt: number }) => ScheduledMail;
+  /** Scheduled messages of every account, soonest first. */
+  listScheduled: () => ScheduledMail[];
+  rescheduleSend: (input: { id: string; sendAt: number }) => ScheduledMail;
+  /** Sends a scheduled message now; resolves once it went or failed. */
+  sendScheduledNow: (input: { id: string }) => null;
+  /**
+   * Stops a scheduled message: back to its account's drafts (the draft's id
+   * is returned), or dropped with `discard`.
+   */
+  cancelScheduled: (input: { id: string; discard?: boolean }) => { draftId: string | null };
   /** Addresses the account may send from (its own and verified Gmail aliases). */
   listSendAs: () => SendAsAddress[];
   /** Creates or updates (with `draftId`) a Gmail draft. Recipients may be empty. */
@@ -337,6 +353,11 @@ export const MAIL_METHODS = [
   "trashThreads",
   "untrashThreads",
   "sendMessage",
+  "scheduleSend",
+  "listScheduled",
+  "rescheduleSend",
+  "sendScheduledNow",
+  "cancelScheduled",
   "listSendAs",
   "saveDraft",
   "deleteDraft",

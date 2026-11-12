@@ -94,25 +94,36 @@ export async function requireBackend(): Promise<{
   backend: MailBackend;
 }> {
   const account = await requireAccount();
+  return { account, backend: await backendFor(account) };
+}
+
+/**
+ * The backend of any account, in use or not (e.g. for sending a scheduled
+ * mail of another account); null when the account no longer exists.
+ */
+export async function backendForAccountId(
+  id: string,
+): Promise<{ account: Account; backend: MailBackend } | null> {
+  const account = (await listAccounts()).find((item) => item.id === id);
+  return account ? { account, backend: await backendFor(account) } : null;
+}
+
+async function backendFor(account: Account): Promise<MailBackend> {
   if (account.kind === "gmail") {
     const session = await getSession();
     if (!session) throw new UnauthorizedError();
-    return { account, backend: createGmailBackend(session) };
+    return createGmailBackend(session);
   }
   if (account.kind === "zoho") {
     const zoho = await getZohoAccount(account.id);
     // Not UnauthorizedError: that signs the Google account out.
     if (!zoho) throw new MailServerError("auth_failed");
-    return { account, backend: createZohoBackend(zoho) };
+    return createZohoBackend(zoho);
   }
   const credentials = await getMailCredentials(account.id);
   // The password can no longer be decrypted (e.g. another Windows user).
   if (!credentials) throw new MailServerError("auth_failed");
-  return {
-    account,
-    backend:
-      credentials.protocol === "pop3"
-        ? createPop3Backend(credentials)
-        : createImapBackend(credentials),
-  };
+  return credentials.protocol === "pop3"
+    ? createPop3Backend(credentials)
+    : createImapBackend(credentials);
 }

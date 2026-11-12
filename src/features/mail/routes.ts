@@ -100,6 +100,7 @@ export function labelHref(labelId: string) {
 }
 
 export const CONTACTS_HREF = "/mail/contacts";
+export const SCHEDULED_HREF = "/mail/scheduled";
 
 export const SERVER_SETTINGS_HREF = "/mail/settings";
 

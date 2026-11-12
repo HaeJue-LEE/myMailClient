@@ -551,6 +551,63 @@ export function useSendAs() {
   });
 }
 
+const scheduledKey = ["scheduled"];
+
+/**
+ * Scheduled messages of every account. Polled every 30 seconds, as the main
+ * process sends them on its own: one sent or failed shows up here.
+ */
+export function useScheduled() {
+  return useQuery({
+    queryKey: scheduledKey,
+    queryFn: () => unwrap(bridge().listScheduled()),
+    refetchInterval: 30 * 1000,
+  });
+}
+
+export function useScheduleSend() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (message: SendMessageInput & { sendAt: number }) =>
+      unwrap(bridge().scheduleSend(message)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: scheduledKey });
+      void queryClient.invalidateQueries({ queryKey: draftListKey });
+    },
+  });
+}
+
+export function useRescheduleSend() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; sendAt: number }) => unwrap(bridge().rescheduleSend(input)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: scheduledKey }),
+  });
+}
+
+export function useSendScheduledNow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unwrap(bridge().sendScheduledNow({ id })),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: scheduledKey });
+      void queryClient.invalidateQueries({ queryKey: ["threads"] });
+    },
+  });
+}
+
+/** Stops a scheduled message: back to drafts, or dropped with `discard`. */
+export function useCancelScheduled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; discard?: boolean }) => unwrap(bridge().cancelScheduled(input)),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: scheduledKey });
+      void queryClient.invalidateQueries({ queryKey: draftListKey });
+    },
+  });
+}
+
 export function useSendMessage() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -9,6 +9,7 @@ import {
   draftListKey,
   openComposeWindow,
   useContacts,
+  useScheduleSend,
   useSendAs,
   useSendMessage,
 } from "@/features/mail/api";
@@ -34,7 +35,8 @@ import {
   type RichEditorHandle,
 } from "@/features/mail/components/rich-editor";
 import { QUOTE_MARK } from "@/features/mail/reply";
-import { draftHref, labelHref } from "@/features/mail/routes";
+import { SchedulePicker } from "@/features/mail/components/schedule-picker";
+import { draftHref, labelHref, SCHEDULED_HREF } from "@/features/mail/routes";
 import { sanitizeForEditor } from "@/features/mail/sanitize";
 import { mailServerErrorText } from "@/features/mail/server-errors";
 import { signatureBlock, swapSignature } from "@/features/mail/signature";
@@ -233,7 +235,8 @@ export function ComposeForm({ start }: { start: ComposeStart }) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [moveFailed, setMoveFailed] = useState(false);
   const popup = usePopupWindow();
-  const isSubmitting = isPending || isSuccess;
+  const schedule = useScheduleSend();
+  const isSubmitting = isPending || isSuccess || schedule.isPending || schedule.isSuccess;
   const attachmentTotal = totalAttachmentSize(attachments);
   const tooLarge = attachmentTotal > MAX_ATTACHMENT_BYTES;
   const autosaveOff = attachmentTotal > AUTOSAVE_MAX_ATTACHMENT_BYTES;
@@ -276,10 +279,10 @@ export function ComposeForm({ start }: { start: ComposeStart }) {
     updateAttachments((current) => [...current, ...added]);
   };
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (tooLarge || isSubmitting) return;
-    const data = new FormData(event.currentTarget);
+  /** The message, checked as for sending; null (with the problems shown) when it cannot go. */
+  function validMessage(): SendMessageInput | null {
+    if (!form.current) return null;
+    const data = new FormData(form.current);
     const value = (name: string) => String(data.get(name) ?? "");
 
     const to = parseAddresses(value("to"));
@@ -293,9 +296,14 @@ export function ComposeForm({ start }: { start: ComposeStart }) {
       bcc: invalidMessage(bcc.invalid),
     };
     setErrors(nextErrors);
-    if (Object.values(nextErrors).some(Boolean)) return;
+    if (Object.values(nextErrors).some(Boolean)) return null;
+    return readMessage();
+  }
 
-    const message = readMessage();
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (tooLarge || isSubmitting) return;
+    const message = validMessage();
     if (!message) return;
     // No save may land after this point; a saved draft is sent as itself.
     const draftId = await draft.beginSend();
@@ -306,6 +314,24 @@ export function ComposeForm({ start }: { start: ComposeStart }) {
           void queryClient.invalidateQueries({ queryKey: draftListKey });
           if (popup) window.close();
           else router.push(labelHref("SENT"));
+        },
+        onError: () => draft.resume(),
+      },
+    );
+  }
+
+  /** Keeps the message to be sent at `sendAt`; its draft is replaced by the scheduled copy. */
+  async function scheduleAt(sendAt: number) {
+    if (tooLarge || isSubmitting) return;
+    const message = validMessage();
+    if (!message) return;
+    const draftId = await draft.beginSend();
+    schedule.mutate(
+      { ...message, draftId, sendAt },
+      {
+        onSuccess: () => {
+          if (popup) window.close();
+          else router.push(SCHEDULED_HREF);
         },
         onError: () => draft.resume(),
       },
@@ -476,6 +502,11 @@ export function ComposeForm({ start }: { start: ComposeStart }) {
           그대로 있으니 잠시 후 다시 시도해 주세요.
         </p>
       )}
+      {schedule.isError && (
+        <p role="alert" className="text-sm text-red-600">
+          보내기를 예약하지 못했습니다. 작성한 내용은 그대로 있으니 다시 시도해 주세요.
+        </p>
+      )}
       {moveFailed && (
         <p role="alert" className="text-sm text-red-600">
           새 창으로 옮기지 못했습니다. 작성한 내용은 그대로 있으니 여기서 계속 쓰거나
@@ -489,8 +520,16 @@ export function ComposeForm({ start }: { start: ComposeStart }) {
           disabled={isSubmitting || tooLarge}
           className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {isSubmitting ? "보내는 중…" : "보내기"}
+          {isPending || isSuccess ? "보내는 중…" : "보내기"}
         </button>
+        <SchedulePicker
+          onPick={(sendAt) => void scheduleAt(sendAt)}
+          disabled={isSubmitting || tooLarge}
+          className="flex items-center gap-1.5 rounded-md border border-foreground/20 px-3 py-2 text-sm hover:bg-foreground/5 disabled:opacity-50"
+        >
+          <Icon name="clock" />
+          {schedule.isPending || schedule.isSuccess ? "예약하는 중…" : "예약"}
+        </SchedulePicker>
         <button
           type="button"
           disabled={isSubmitting || tooLarge || draft.state === "saving"}

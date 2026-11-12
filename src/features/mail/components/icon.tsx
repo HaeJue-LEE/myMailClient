@@ -47,6 +47,7 @@ const ICON_PATHS = {
   highlight: "M9 11l-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4",
   eraser: "M7 21h12M4.5 15.5l9.9-9.9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19H8z",
   chevronDown: "M6 9l6 6 6-6",
+  clock: "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 7v5l3 2",
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

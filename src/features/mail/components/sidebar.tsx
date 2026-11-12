@@ -6,6 +6,7 @@ import {
   useAccounts,
   useLabels,
   useOpenComposeWindow,
+  useScheduled,
   useSwitchAccount,
 } from "@/features/mail/api";
 import { AccountAvatar } from "@/features/mail/components/account-avatar";
@@ -17,6 +18,7 @@ import {
   labelHref,
   listLabel,
   parseMailList,
+  SCHEDULED_HREF,
   SERVER_SETTINGS_HREF,
 } from "@/features/mail/routes";
 
@@ -42,6 +44,8 @@ export function Sidebar({ account }: { account: Account }) {
     pathname === "/mail" ? listLabel(parseMailList(searchParams)) : null;
   const { data: labels = [] } = useLabels();
   const { data: accounts = [] } = useAccounts();
+  const { data: scheduled = [] } = useScheduled();
+  const failedScheduled = scheduled.some((mail) => mail.status === "failed");
   const switchAccount = useSwitchAccount();
   const openCompose = useOpenComposeWindow();
   const userLabels = labels.filter((label) => label.type === "user");
@@ -98,6 +102,22 @@ export function Sidebar({ account }: { account: Account }) {
           ))}
         </ul>
         <div className="mt-2 border-t border-foreground/10 pt-2">
+          <Link
+            href={SCHEDULED_HREF}
+            aria-current={pathname === SCHEDULED_HREF ? "page" : undefined}
+            className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm hover:bg-foreground/5 aria-[current=page]:bg-foreground/10 aria-[current=page]:font-medium"
+          >
+            <Icon name="clock" className="opacity-70" />
+            예약 메일
+            {scheduled.length > 0 && (
+              <span
+                className={`ml-auto text-xs tabular-nums ${failedScheduled ? "font-semibold text-red-600" : "opacity-60"}`}
+                title={failedScheduled ? "보내지 못한 예약 메일이 있습니다" : undefined}
+              >
+                {scheduled.length}
+              </span>
+            )}
+          </Link>
           <Link
             href={CONTACTS_HREF}
             aria-current={pathname === CONTACTS_HREF ? "page" : undefined}
