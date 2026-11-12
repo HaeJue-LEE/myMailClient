@@ -372,7 +372,8 @@ export function ComposeForm({ start }: { start: ComposeStart }) {
         setDragging(false);
         void addFiles([...event.dataTransfer.files]);
       }}
-      className={`mx-auto flex min-h-full max-w-4xl flex-col gap-4 p-6 ${
+      // As wide as the window: wide mail (tables, quoted newsletters) needs the room.
+      className={`flex min-h-full w-full flex-col gap-4 p-6 ${
         dragging ? "rounded-lg outline-2 outline-dashed outline-foreground/40" : ""
       }`}
     >

@@ -167,7 +167,8 @@ function ThreadContent({
   }
 
   return (
-    <article className="mx-auto max-w-4xl space-y-6 p-6">
+    // As wide as the window, like the compose page: wide mail needs the room.
+    <article className="w-full space-y-6 p-6">
       <header>
         <h1 className="text-xl font-semibold">{thread.subject}</h1>
       </header>
