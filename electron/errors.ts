@@ -7,9 +7,10 @@ export class UnauthorizedError extends Error {}
 export class InvalidRequestError extends Error {}
 
 /**
- * A failure talking to an IMAP or SMTP server, already reduced to a code the
- * renderer may see. Unlike a dead Google grant, it never signs anything out:
- * a wrong password is fixed in the account's settings.
+ * A failure talking to an IMAP, SMTP, or Zoho Mail server, already reduced to
+ * a code the renderer may see. Unlike a dead Google grant, it never signs
+ * anything out: a wrong password is fixed in the account's settings, and a
+ * dead Zoho sign-in by signing in to that account again.
  */
 export class MailServerError extends Error {
   constructor(
@@ -18,7 +19,9 @@ export class MailServerError extends Error {
       | "connection_failed"
       | "smtp_auth_failed"
       | "smtp_connection_failed"
-      | "server_error",
+      | "server_error"
+      /** A Zoho account's API quota is used up for now. */
+      | "rate_limited",
     detail?: string,
   ) {
     super(detail ?? code);

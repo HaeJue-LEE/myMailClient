@@ -10,6 +10,7 @@ import type {
   MailAccountInput,
   MailAccountSettings,
 } from "@/features/mail/mail-accounts";
+import type { ZohoRegion } from "@/features/mail/zoho";
 
 /** Contract between the renderer and the Electron main process. */
 
@@ -119,6 +120,11 @@ export type AppFeatures = {
   /** The start of the client ID in use, to recognise it; never the secret. */
   googleClientHint: string | null;
   /**
+   * The Zoho API client the user entered for Zoho sign-in (Zoho Mail API):
+   * its data center and the start of its ID; null until one is entered.
+   */
+  zohoClient: { region: ZohoRegion; hint: string } | null;
+  /**
    * Desktop and Start menu shortcuts: `available` only when the app was
    * started through its launcher exe, which the shortcuts point at.
    */
@@ -134,6 +140,18 @@ export type MailMethods = {
   saveGoogleClient: (input: { clientId: string; clientSecret: string }) => AppFeatures;
   /** Forgets the entered client; a Google account signed in with it is signed out. */
   removeGoogleClient: () => AppFeatures;
+  /**
+   * Keeps the Zoho API client the user created ("Non-browser Applications"
+   * at api-console.zoho.com), encrypted on this computer.
+   */
+  saveZohoClient: (input: { clientId: string; clientSecret: string; region: ZohoRegion }) => AppFeatures;
+  /** Forgets the Zoho client, and with it every Zoho account signed in with it. */
+  removeZohoClient: () => AppFeatures;
+  /**
+   * Adds (or signs in again to) a Zoho Mail account and switches to it. Opens
+   * Zoho's approval page in the system browser and resolves once approved.
+   */
+  loginZoho: () => Account;
   /** Creates or removes the desktop or Start menu shortcut to the launcher. */
   setShortcut: (input: { place: "desktop" | "startMenu"; enabled: boolean }) => AppFeatures;
   /** The account in use; null when no account has been added. */
@@ -147,7 +165,7 @@ export type MailMethods = {
    * the system browser and resolves once Google redirects back.
    */
   login: () => Account;
-  /** Removes an account from the app: signs out of Google, or forgets an IMAP account. */
+  /** Removes an account from the app: signs out of Google or Zoho, or forgets an IMAP account. */
   removeAccount: (input: { id: string }) => null;
   /**
    * Asks for an image file and makes it the account's picture (shown instead
@@ -252,6 +270,9 @@ export const MAIL_METHODS = [
   "getAppFeatures",
   "saveGoogleClient",
   "removeGoogleClient",
+  "saveZohoClient",
+  "removeZohoClient",
+  "loginZoho",
   "setShortcut",
   "getAccount",
   "listAccounts",

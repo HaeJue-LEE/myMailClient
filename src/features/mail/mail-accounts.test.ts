@@ -94,6 +94,7 @@ describe("presetFor", () => {
     expect(presetFor({ protocol: "pop3", incoming: endpoint("pop3s.hiworks.com") })?.id).toBe("hiworks");
     expect(presetFor({ protocol: "imap", incoming: endpoint("IMAP.naver.com") })?.id).toBe("naver");
     expect(presetFor({ protocol: "imap", incoming: endpoint("imap.gmail.com") })?.id).toBe("gmail-imap");
+    expect(presetFor({ protocol: "imap", incoming: endpoint("imappro.zoho.com") })?.id).toBe("zoho");
   });
 
   it("falls back to the custom preset of the account's protocol", () => {

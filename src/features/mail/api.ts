@@ -132,7 +132,42 @@ export function useRemoveGoogleClient() {
   });
 }
 
-/** Every account added to the app: the Google account and IMAP accounts. */
+/** Keeps the Zoho API client the user entered, so Zoho sign-in can start. */
+export function useSaveZohoClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<MailApi["saveZohoClient"]>[0]) =>
+      unwrap(bridge().saveZohoClient(input)),
+    onSuccess: (features) => queryClient.setQueryData(appFeaturesKey, features),
+  });
+}
+
+/** Forgets the Zoho client; its Zoho accounts are removed with it. */
+export function useRemoveZohoClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(bridge().removeZohoClient()),
+    onSuccess: (features) => {
+      queryClient.setQueryData(appFeaturesKey, features);
+      const active = queryClient.getQueryData<Account | null>(accountKey);
+      if (active?.kind === "zoho") reloadMail();
+      else void queryClient.invalidateQueries({ queryKey: accountsKey });
+    },
+  });
+}
+
+/**
+ * Signs in to a Zoho Mail account (approved in the system browser) and
+ * switches to it, which is a full navigation like any account switch.
+ */
+export function useLoginZoho() {
+  return useMutation({
+    mutationFn: () => unwrap(bridge().loginZoho()),
+    onSuccess: reloadMail,
+  });
+}
+
+/** Every account added to the app: the Google account, IMAP, POP3, and Zoho accounts. */
 export function useAccounts() {
   return useQuery({
     queryKey: accountsKey,

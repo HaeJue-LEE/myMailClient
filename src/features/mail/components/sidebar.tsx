@@ -173,7 +173,12 @@ function AccountTile({
   onSelect: () => void;
 }) {
   const label = account.name || account.email.split("@")[0];
-  const service = account.kind === "gmail" ? "Google" : account.email.split("@")[1];
+  const service =
+    account.kind === "gmail"
+      ? "Google"
+      : account.kind === "zoho"
+        ? `Zoho · ${account.email.split("@")[1]}`
+        : account.email.split("@")[1];
   return (
     <button
       type="button"
@@ -195,7 +200,7 @@ function AccountTile({
           aria-hidden
           className="absolute -bottom-1 -right-1 rounded-full border border-background bg-foreground px-1 text-[9px] font-semibold leading-tight text-background"
         >
-          {account.kind === "gmail" ? "G" : "@"}
+          {account.kind === "gmail" ? "G" : account.kind === "zoho" ? "Z" : "@"}
         </span>
       </span>
       <span className={`w-full truncate text-center text-[11px] ${active ? "font-medium" : "opacity-70"}`}>

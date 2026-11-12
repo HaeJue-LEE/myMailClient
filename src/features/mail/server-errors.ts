@@ -2,11 +2,13 @@ import { MailApiError } from "@/features/mail/api";
 
 const SERVER_ERROR_TEXT: Partial<Record<MailApiError["code"], string>> = {
   auth_failed:
-    "받는 메일 서버(IMAP/POP3)가 로그인을 거부했습니다. 사용자 이름과 비밀번호를 확인해 주세요.",
+    "받는 메일 서버(IMAP/POP3)가 로그인을 거부했습니다. 사용자 이름과 비밀번호를 확인해 주세요. Zoho 로그인 계정이면 메일 계정 화면에서 Zoho 계정을 다시 추가해 주세요.",
   connection_failed:
     "받는 메일 서버(IMAP/POP3)에 연결하지 못했습니다. 서버 주소, 포트, 연결 보안과 네트워크 상태를 확인해 주세요.",
   smtp_auth_failed:
     "보내는 메일 서버(SMTP)가 로그인을 거부했습니다. 사용자 이름과 비밀번호를 확인해 주세요.",
+  rate_limited:
+    "메일 서버의 요청 한도에 잠시 걸렸습니다. 1~2분 뒤에 다시 시도해 주세요.",
   smtp_connection_failed:
     "보내는 메일 서버(SMTP)에 연결하지 못했습니다. 서버 주소, 포트, 연결 보안과 네트워크 상태를 확인해 주세요.",
 };

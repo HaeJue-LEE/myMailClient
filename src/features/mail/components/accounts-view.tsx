@@ -23,6 +23,7 @@ const KIND_LABEL: Record<Account["kind"], string> = {
   gmail: "Google",
   imap: "IMAP",
   pop3: "POP3",
+  zoho: "Zoho",
 };
 
 const ROW_BUTTON =
@@ -246,6 +247,8 @@ function AccountRow({
   const removeAvatar = useRemoveAccountAvatar();
   const [confirming, setConfirming] = useState(false);
   const isGoogle = account.kind === "gmail";
+  // Signed in rather than set up with a password: nothing to edit, removing signs out.
+  const isSignIn = isGoogle || account.kind === "zoho";
 
   if (confirming) {
     return (
@@ -259,6 +262,8 @@ function AccountRow({
           <b>{account.email}</b> 계정을 이 앱에서 삭제할까요?{" "}
           {isGoogle
             ? "Google 계정에서 로그아웃하며, 메일은 Gmail에 그대로 남습니다."
+            : account.kind === "zoho"
+              ? "Zoho 로그인을 해제하며, 메일은 Zoho 메일에 그대로 남습니다."
             : "저장된 서버 설정과 비밀번호가 지워지며, 메일은 서버에 그대로 남습니다."}
         </p>
         {remove.isError && (
@@ -273,7 +278,7 @@ function AccountRow({
             onClick={() => remove.mutate(account.id, { onSuccess: onRemoved })}
             className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
-            {remove.isPending ? "삭제하는 중…" : isGoogle ? "로그아웃" : "삭제"}
+            {remove.isPending ? "삭제하는 중…" : isSignIn ? "로그아웃" : "삭제"}
           </button>
           {/* Focus starts on the safe choice: a stray Enter must not delete. */}
           <button
@@ -345,7 +350,7 @@ function AccountRow({
             이 계정 사용
           </button>
         )}
-        {!isGoogle && (
+        {!isSignIn && (
           <button
             type="button"
             onClick={onEdit}
@@ -363,7 +368,7 @@ function AccountRow({
           className={`${ROW_BUTTON} text-red-600`}
         >
           <Icon name="trash" />
-          <span className="hidden lg:inline">{isGoogle ? "로그아웃" : "삭제"}</span>
+          <span className="hidden lg:inline">{isSignIn ? "로그아웃" : "삭제"}</span>
         </button>
       </div>
       {(chooseAvatar.isError || removeAvatar.isError) && (

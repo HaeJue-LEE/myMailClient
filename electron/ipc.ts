@@ -70,6 +70,17 @@ import { verifySmtp } from "./imap/smtp";
 import { verifyPop3 } from "./pop3/client";
 import { removeLocalStore } from "./pop3/store";
 import { SHORTCUT_PLACES, setShortcut, shortcutStatus } from "./shortcuts";
+import { revokeZoho, signInZoho } from "./zoho/auth";
+import { dropZohoCaches } from "./zoho/backend";
+import {
+  getZohoAccount,
+  getZohoClient,
+  removeZohoAccount,
+  removeZohoClient,
+  saveZohoClient,
+  storeZohoAccount,
+  zohoClientSchema,
+} from "./zoho/store";
 
 type Input<K extends keyof MailMethods> = Parameters<MailMethods[K]>[0];
 type Handler<K extends keyof MailMethods> = {
@@ -110,11 +121,12 @@ async function googleSession() {
 }
 
 async function appFeatures() {
-  const { client, source } = await getGoogleClient();
+  const [{ client, source }, zoho] = await Promise.all([getGoogleClient(), getZohoClient()]);
   return {
     googleSignIn: client !== null,
     googleClient: source,
     googleClientHint: client ? clientHint(client) : null,
+    zohoClient: zoho ? { region: zoho.region, hint: `${zoho.clientId.slice(0, 12)}…` } : null,
     shortcuts: shortcutStatus(),
   };
 }
@@ -138,6 +150,37 @@ export function registerMailHandlers(options: {
         // A session made with another client cannot be refreshed with this one.
         dropSession();
         return appFeatures();
+      },
+    },
+    saveZohoClient: {
+      input: zohoClientSchema,
+      run: async (client) => {
+        await saveZohoClient(client);
+        return appFeatures();
+      },
+    },
+    removeZohoClient: {
+      input: noInput,
+      run: async () => {
+        // Sign-ins made with it cannot be refreshed without it.
+        const activeId = await getActiveId();
+        for (const id of await removeZohoClient()) {
+          dropZohoCaches(id);
+          await removeAvatar(id);
+          if (activeId === id) await setActiveId(null);
+        }
+        return appFeatures();
+      },
+    },
+    loginZoho: {
+      input: noInput,
+      run: async () => {
+        const zoho = await signInZoho();
+        dropZohoCaches(zoho.id);
+        await storeZohoAccount(zoho);
+        await setActiveId(zoho.id);
+        options.onSignedIn();
+        return { id: zoho.id, kind: "zoho", email: zoho.email, name: zoho.name };
       },
     },
     setShortcut: {
@@ -192,8 +235,14 @@ export function registerMailHandlers(options: {
     removeAccount: {
       input: z.object({ id: accountId }),
       run: async ({ id }) => {
+        const zoho = await getZohoAccount(id);
         if (id === GMAIL_ACCOUNT_ID) {
           await signOut({ revoke: true });
+          if ((await getActiveId()) === id) await setActiveId(null);
+        } else if (zoho) {
+          await revokeZoho(zoho);
+          dropZohoCaches(id);
+          await removeZohoAccount(id);
           if ((await getActiveId()) === id) await setActiveId(null);
         } else {
           dropImap(id);

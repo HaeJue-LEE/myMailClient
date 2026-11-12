@@ -27,8 +27,21 @@ Google 로그인을 쓰려면:
 **메일 계정 → 메일 계정 추가**에서 추가합니다. 저장할 때 IMAP·SMTP 서버에 실제로 로그인해 보고, 성공해야 저장됩니다.
 
 - 네이버: 메일 환경설정에서 **IMAP/SMTP 사용함**으로 바꿉니다. 로그인 비밀번호가 거부되면 2단계 인증의 **애플리케이션 비밀번호**를 만들어 입력합니다. (imap.naver.com:993, smtp.naver.com:465, SSL)
+- Zoho(회사 도메인): Zoho 메일 설정 → 메일 계정 → IMAP에서 **IMAP 액세스**를 켭니다. 2단계 인증을 쓰면 **앱 비밀번호**를 만들어 입력합니다. (imappro.zoho.com:993, smtppro.zoho.com:465, SSL)
 - IMAP 계정은 메일 한 통을 대화 하나로 보여 주며, 검색은 받은편지함에서 합니다. Google 주소록·보관·중요 편지함은 Google 계정 전용입니다.
 - 서버 설정은 `%APPDATA%\Mail Client\accounts.json`에, 비밀번호는 `safeStorage`로 암호화해 같은 파일에 저장합니다.
+
+## Zoho 메일 (Zoho 로그인)
+
+Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로, Zoho Mail API로 연결합니다(유료 플랜도 같은 방법으로 쓸 수 있습니다).
+**메일 계정 → 메일 계정 추가 → Zoho 메일 (Zoho 로그인)**에서 추가합니다.
+
+1. [Zoho API 콘솔](https://api-console.zoho.com/)에서 **ADD CLIENT → Non-browser Applications**로 클라이언트를 만듭니다.
+2. 앱에 Client ID·Client Secret과 데이터 센터(api-console.zoho.com이면 미국)를 넣고 저장합니다.
+3. **Zoho 계정으로 로그인**을 누르면 브라우저에 Zoho 승인 화면이 열립니다. 코드를 확인하고 승인하면 계정이 추가됩니다.
+
+- 클라이언트와 리프레시 토큰은 `safeStorage`로 암호화해 `%APPDATA%\Mail Client\zoho.bin`에 저장합니다. 실행 파일에는 들어가지 않습니다.
+- 메일 한 통을 대화 하나로 보여 주며, 검색은 Zoho 검색으로 합니다(제외 조건 `-`과 숨은참조 검색은 지원하지 않습니다). 별표는 Zoho의 '중요' 플래그입니다.
 
 ## 명령어
 
@@ -56,6 +69,8 @@ electron/            메인 프로세스 (Node.js)
   preload.ts         화면에 window.mailApi만 노출
   gmail/             Gmail 서비스, 메시지 파싱, MIME 생성
   imap/              IMAP 연결·폴더 매핑·검색 변환·메시지 파싱, SMTP 전송
+  pop3/              POP3 연결, 로컬 저장소(읽음·임시보관·보낸편지)
+  zoho/              Zoho 로그인(device flow)·토큰, Zoho Mail API 백엔드
 src/                 화면 (Next.js 정적 내보내기 → out/)
   app/               /login, /mail?label=…&thread=…, /mail/compose
   features/mail/     컴포넌트, React Query 훅, 브리지 타입, HTML 정화

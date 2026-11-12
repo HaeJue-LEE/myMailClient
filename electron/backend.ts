@@ -18,6 +18,8 @@ import { MailServerError, UnauthorizedError } from "./errors";
 import { createGmailBackend } from "./gmail/backend";
 import { createImapBackend } from "./imap/backend";
 import { createPop3Backend } from "./pop3/backend";
+import { createZohoBackend } from "./zoho/backend";
+import { getZohoAccount, listZohoAccounts } from "./zoho/store";
 
 /**
  * What every kind of account can do with mail. The renderer always speaks in
@@ -46,11 +48,12 @@ export type MailBackend = {
   getAttachmentData: (messageId: string, attachmentId: string) => Promise<Buffer>;
 };
 
-/** Every account that can be used: the Google account first, then IMAP and POP3 accounts. */
+/** Every account that can be used: the Google account first, then IMAP, POP3, and Zoho accounts. */
 export async function listAccounts(): Promise<Account[]> {
-  const [session, mailAccounts, order] = await Promise.all([
+  const [session, mailAccounts, zohoAccounts, order] = await Promise.all([
     getSession(),
     listMailAccounts(),
+    listZohoAccounts(),
     getAccountOrder(),
   ]);
   const accounts: Account[] = [
@@ -63,6 +66,7 @@ export async function listAccounts(): Promise<Account[]> {
       email,
       name,
     })),
+    ...zohoAccounts.map(({ id, email, name }) => ({ id, kind: "zoho" as const, email, name })),
   ];
   return Promise.all(
     sortAccounts(accounts, order).map(async (account) => ({
@@ -94,6 +98,12 @@ export async function requireBackend(): Promise<{
     const session = await getSession();
     if (!session) throw new UnauthorizedError();
     return { account, backend: createGmailBackend(session) };
+  }
+  if (account.kind === "zoho") {
+    const zoho = await getZohoAccount(account.id);
+    // Not UnauthorizedError: that signs the Google account out.
+    if (!zoho) throw new MailServerError("auth_failed");
+    return { account, backend: createZohoBackend(zoho) };
   }
   const credentials = await getMailCredentials(account.id);
   // The password can no longer be decrypted (e.g. another Windows user).

@@ -20,8 +20,10 @@ import {
   type ServerKind,
   type ServerSecurity,
   SENT_COPY_SUBJECT_PREFIX,
+  ZOHO_SIGN_IN_CHOICE,
 } from "@/features/mail/mail-accounts";
 import { GoogleAccountSetup } from "@/features/mail/components/google-account-setup";
+import { ZohoAccountSetup } from "@/features/mail/components/zoho-account-setup";
 import { mailServerErrorText } from "@/features/mail/server-errors";
 
 const INPUT_CLASS =
@@ -37,6 +39,7 @@ const SECURITY_OPTIONS: [value: ServerSecurity, label: string][] = [
 const EMAIL_PLACEHOLDERS: Record<string, string> = {
   naver: "id@naver.com",
   "gmail-imap": "id@gmail.com",
+  zoho: "id@회사도메인",
 };
 
 /** A server as typed; the port stays text until it is checked on save. */
@@ -87,6 +90,8 @@ export function MailAccountForm({
   const [preset, setPreset] = useState<AccountPreset>(ACCOUNT_PRESETS[0]);
   // Gmail through Google sign-in comes first in the list; it has no server fields.
   const [googleChosen, setGoogleChosen] = useState(!editing);
+  // Zoho through Zoho sign-in (Zoho Mail API) has no server fields either.
+  const [zohoChosen, setZohoChosen] = useState(false);
   const [name, setName] = useState(editing?.name ?? "");
   const [email, setEmail] = useState(editing?.email ?? "");
   // Follows the address until the user types a different user name.
@@ -111,6 +116,7 @@ export function MailAccountForm({
 
   const choosePreset = (id: string) => {
     setGoogleChosen(id === GOOGLE_SIGN_IN_CHOICE.id);
+    setZohoChosen(id === ZOHO_SIGN_IN_CHOICE.id);
     const next = ACCOUNT_PRESETS.find((item) => item.id === id) ?? preset;
     setPreset(next);
     setIncoming(toDraft(next.incoming));
@@ -174,11 +180,13 @@ export function MailAccountForm({
     <label className="block max-w-xs text-sm">
       <span className="mb-1 block opacity-70">메일 서비스</span>
       <select
-        value={googleChosen ? GOOGLE_SIGN_IN_CHOICE.id : preset.id}
+        value={
+          googleChosen ? GOOGLE_SIGN_IN_CHOICE.id : zohoChosen ? ZOHO_SIGN_IN_CHOICE.id : preset.id
+        }
         onChange={(event) => choosePreset(event.target.value)}
         className={INPUT_CLASS}
       >
-        {[GOOGLE_SIGN_IN_CHOICE, ...ACCOUNT_PRESETS].map((item) => (
+        {[GOOGLE_SIGN_IN_CHOICE, ZOHO_SIGN_IN_CHOICE, ...ACCOUNT_PRESETS].map((item) => (
           <option key={item.id} value={item.id} className="bg-background text-foreground">
             {item.label}
           </option>
@@ -186,6 +194,16 @@ export function MailAccountForm({
       </select>
     </label>
   );
+
+  if (!editing && zohoChosen) {
+    return (
+      <div aria-label={title} className="space-y-4 rounded-md border border-foreground/15 p-4">
+        <p className="text-sm font-semibold">{title}</p>
+        {serviceSelect}
+        <ZohoAccountSetup onCancel={onCancel} />
+      </div>
+    );
+  }
 
   if (!editing && googleChosen) {
     return (

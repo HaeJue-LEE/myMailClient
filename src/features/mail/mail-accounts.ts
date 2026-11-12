@@ -3,10 +3,10 @@ import { emailSchema } from "@/features/mail/email";
 
 /**
  * Mail accounts: the Google account (Gmail API) and any number of IMAP/SMTP
- * accounts such as Naver, and POP3/SMTP accounts such as Hiworks. Shared by
- * the screens and the main process.
+ * accounts such as Naver, POP3/SMTP accounts such as Hiworks, and Zoho Mail
+ * accounts (Zoho Mail API). Shared by the screens and the main process.
  */
-export type AccountKind = "gmail" | "imap" | "pop3";
+export type AccountKind = "gmail" | "imap" | "pop3" | "zoho";
 
 /** How an account's incoming mail is read. */
 export const INCOMING_PROTOCOLS = ["imap", "pop3"] as const;
@@ -142,6 +142,12 @@ export type AccountPreset = {
  */
 export const GOOGLE_SIGN_IN_CHOICE = { id: "gmail-api", label: "Gmail (Google 로그인, Gmail API)" } as const;
 
+/**
+ * The choice that adds a Zoho Mail account through Zoho sign-in (Zoho Mail
+ * API), which also works on the free plan where IMAP is not offered.
+ */
+export const ZOHO_SIGN_IN_CHOICE = { id: "zoho-api", label: "Zoho 메일 (Zoho 로그인, 무료 플랜 가능)" } as const;
+
 export const ACCOUNT_PRESETS: AccountPreset[] = [
   {
     id: "gmail-imap",
@@ -171,6 +177,25 @@ export const ACCOUNT_PRESETS: AccountPreset[] = [
       "네이버 메일 → 환경설정 → POP3/IMAP 설정 → IMAP/SMTP 설정에서 '사용함'으로 바꿔 주세요.",
       "네이버 로그인 비밀번호로 로그인이 거부되면 애플리케이션 비밀번호를 만들어 넣어 주세요. (네이버 → 내 정보 → 보안설정 → 2단계 인증 → 애플리케이션 비밀번호 관리)",
       "사용자 이름은 네이버 메일 주소 전체(예: id@naver.com)를 넣습니다. 거부되면 @ 앞의 아이디만 넣어 보세요.",
+    ],
+  },
+  {
+    id: "zoho",
+    label: "Zoho 메일 (IMAP, 유료 플랜)",
+    protocol: "imap",
+    // Organization (custom domain) accounts on Zoho's US data center; personal
+    // @zoho.com accounts use imap.zoho.com / smtp.zoho.com instead.
+    incoming: { host: "imappro.zoho.com", port: 993, security: "ssl" },
+    outgoing: { host: "smtppro.zoho.com", port: 465, security: "ssl" },
+    // As with Naver, whether Zoho files SMTP mail under Sent is unconfirmed.
+    saveSentCopy: true,
+    notes: [
+      "IMAP은 Zoho 유료 플랜에서만 쓸 수 있습니다. 무료(Forever Free) 플랜이면 'Zoho 메일 (Zoho 로그인)'을 골라 주세요.",
+      "Zoho 메일 → 설정 → 메일 계정 → IMAP에서 'IMAP 액세스'를 켜 주세요. 조직 관리자가 막아 둔 경우 관리 콘솔에서 허용해야 합니다.",
+      "2단계 인증(TFA)을 켰다면 Zoho 비밀번호 대신 앱 비밀번호를 만들어 넣어 주세요. (Zoho 계정 → 보안 → 앱 비밀번호, accounts.zoho.com)",
+      "사용자 이름은 메일 주소 전체(예: id@회사도메인)를 넣습니다.",
+      "개인 @zoho.com 계정은 서버를 imap.zoho.com / smtp.zoho.com으로, 유럽 데이터센터(zoho.eu)는 imappro.zoho.eu / smtppro.zoho.eu로 바꿔 주세요.",
+      "보낸편지함에 같은 메일이 두 통씩 보이면 서버 설정에서 '보낸 메일을 보낸편지함에 복사'를 꺼 주세요.",
     ],
   },
   {
