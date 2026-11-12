@@ -4,6 +4,15 @@ import type { MailMessage } from "@/features/mail/types";
 
 export type ReplyMode = "reply" | "replyAll" | "forward";
 
+/**
+ * Marks the quote of the message being answered in a body on its way out.
+ * The editor's own marker (`data-mc="quote"`) is dropped by sanitizing, so
+ * this one carries it to the main process, which takes it off again before
+ * the mail leaves (and Zoho, which quotes the original itself, drops the
+ * marked block).
+ */
+export const QUOTE_MARK = "data-mc-quote";
+
 export type Mailbox = { name: string; email: string };
 
 /**

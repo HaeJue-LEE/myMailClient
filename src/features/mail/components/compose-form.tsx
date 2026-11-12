@@ -33,6 +33,7 @@ import {
   RichEditor,
   type RichEditorHandle,
 } from "@/features/mail/components/rich-editor";
+import { QUOTE_MARK } from "@/features/mail/reply";
 import { draftHref, labelHref } from "@/features/mail/routes";
 import { sanitizeForEditor } from "@/features/mail/sanitize";
 import { mailServerErrorText } from "@/features/mail/server-errors";
@@ -200,7 +201,14 @@ function SenderField({
 
 /** The editor's content as a message body: HTML in a `dir` wrapper, plus plain text. */
 export function bodyFromEditor(editor: RichEditorHandle | null) {
-  const html = sanitizeForEditor(editor?.html() ?? "");
+  const source = editor?.element();
+  let raw = editor?.html() ?? "";
+  if (source?.querySelector('[data-mc="quote"]')) {
+    const copy = source.cloneNode(true) as HTMLElement;
+    copy.querySelector('[data-mc="quote"]')?.setAttribute(QUOTE_MARK, "");
+    raw = copy.innerHTML;
+  }
+  const html = sanitizeForEditor(raw);
   return { html: `<div dir="ltr">${html}</div>`, text: editor?.text() ?? "" };
 }
 

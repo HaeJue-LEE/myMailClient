@@ -7,6 +7,7 @@ import {
   type SendMessageInput,
 } from "@/features/mail/bridge";
 import { emailSchema } from "@/features/mail/email";
+import { QUOTE_MARK } from "@/features/mail/reply";
 import { InvalidRequestError } from "./errors";
 import { formatMailbox, type OutgoingAttachment, type OutgoingMessage } from "./gmail/mime";
 import { toDraftFields, toMailMessage } from "./gmail/parse";
@@ -96,6 +97,11 @@ export function attachmentBytes(attachments: SendMessageInput["attachments"]) {
   );
 }
 
+/** `html` without the app's quote marker (`QUOTE_MARK`), which must not leave the app. */
+export function stripQuoteMark(html: string) {
+  return html.replace(new RegExp(String.raw`\s${QUOTE_MARK}(?:=(?:""|''))?(?=[\s/>])`, "gi"), "");
+}
+
 /** What building a message needs from the account it is sent from. */
 export type OutgoingSource = {
   listSendAs: () => Promise<SendAsAddress[]>;
@@ -150,7 +156,7 @@ export async function buildOutgoing(
     bcc: input.bcc,
     subject: input.subject,
     text: input.text,
-    html: input.html,
+    html: input.html === undefined ? undefined : stripQuoteMark(input.html),
     inReplyTo: input.inReplyTo,
     references: input.references,
     attachments,

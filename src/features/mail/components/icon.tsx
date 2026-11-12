@@ -26,6 +26,27 @@ const ICON_PATHS = {
   grip: "M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01",
   popOut:"M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
   personAdd: "M9 11a4 4 0 1 0 0-8a4 4 0 1 0 0 8M2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 4 1.5M19 14v6M16 17h6",
+  // Compose editor toolbar.
+  undo: "M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3",
+  redo: "M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3",
+  alignLeft: "M4 6h16M4 10h10M4 14h16M4 18h10",
+  alignCenter: "M4 6h16M7 10h10M4 14h16M7 18h10",
+  alignRight: "M4 6h16M10 10h10M4 14h16M10 18h10",
+  alignJustify: "M4 6h16M4 10h16M4 14h16M4 18h16",
+  listBullet: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01",
+  listNumber: "M10 6h10M10 12h10M10 18h10M4 4h1v4M4 8h2M4 14.5a1 1 0 1 1 2 0c0 .8-2 2-2 3.5h2",
+  indent: "M4 6h16M11 10h9M11 14h9M4 18h16M4 9l3 3-3 3",
+  outdent: "M4 6h16M11 10h9M11 14h9M4 18h16M7 9l-3 3 3 3",
+  quote: "M5 17h3l2-4V7H4v6h3zM14 17h3l2-4V7h-6v6h3z",
+  code: "M8 6l-6 6 6 6M16 6l6 6-6 6",
+  horizontalRule: "M3 12h18M8 7h8M8 17h8",
+  link: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
+  unlink: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7M3 3l18 18",
+  table: "M3 4h18v16H3zM3 10h18M3 15h18M9 4v16M15 4v16",
+  emoji: "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01",
+  highlight: "M9 11l-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4",
+  eraser: "M7 21h12M4.5 15.5l9.9-9.9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19H8z",
+  chevronDown: "M6 9l6 6 6-6",
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

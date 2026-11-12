@@ -1,5 +1,6 @@
 import type { MailLabel, ThreadSummary } from "@/features/mail/types";
 import { InvalidRequestError } from "../errors";
+import { QUOTE_MARK } from "@/features/mail/reply";
 import { decodeEntities } from "../gmail/parse";
 
 const NO_SUBJECT = "(제목 없음)";
@@ -136,12 +137,12 @@ export function toZohoSummary(message: ZohoListedMessage): ThreadSummary {
 }
 
 /**
- * `html` without the app's quote of the message being answered
- * (`<div data-mc="quote">…</div>`). Zoho's reply call quotes the original
- * itself, so keeping the app's quote would show it twice.
+ * `html` without the app's quote of the message being answered (the `div`
+ * carrying `QUOTE_MARK`). Zoho's reply call quotes the original itself, so
+ * keeping the app's quote would show it twice.
  */
 export function withoutQuote(html: string): string {
-  const start = html.search(/<div\b[^>]*\bdata-mc=["']?quote\b/i);
+  const start = html.search(new RegExp(String.raw`<div\b[^>]*\s${QUOTE_MARK}\b`, "i"));
   if (start < 0) return html;
   const tags = /<(\/?)div\b[^>]*>/gi;
   tags.lastIndex = start;

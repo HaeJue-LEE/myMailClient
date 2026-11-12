@@ -175,7 +175,7 @@ describe("withoutQuote", () => {
   it("drops the app's quote block, nested divs included", () => {
     expect(
       withoutQuote(
-        '<div dir="ltr"><p>Thanks</p><div data-mc="quote"><div>On Monday</div><blockquote><div>old</div></blockquote></div><p>PS</p></div>',
+        '<div dir="ltr"><p>Thanks</p><div data-mc-quote=""><div>On Monday</div><blockquote><div>old</div></blockquote></div><p>PS</p></div>',
       ),
     ).toBe('<div dir="ltr"><p>Thanks</p><p>PS</p></div>');
   });
@@ -195,5 +195,15 @@ describe("toMs", () => {
     expect(toMs("300")).toBe(300000);
     expect(toMs(undefined)).toBeNull();
     expect(toMs(0)).toBeNull();
+  });
+});
+
+describe("stripQuoteMark", () => {
+  it("takes the app's quote marker off before mail leaves", async () => {
+    const { stripQuoteMark } = await import("../compose");
+    expect(stripQuoteMark('<div data-mc-quote=""><p>old</p></div><div data-mc-quote>x</div>')).toBe(
+      "<div><p>old</p></div><div>x</div>",
+    );
+    expect(stripQuoteMark('<p title="data-mc-quote">kept</p>')).toBe('<p title="data-mc-quote">kept</p>');
   });
 });

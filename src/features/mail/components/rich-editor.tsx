@@ -3,12 +3,20 @@
 import {
   type ClipboardEvent,
   type DragEvent,
+  type KeyboardEvent,
   type Ref,
+  useCallback,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import {
+  EditorToolbar,
+  type FormatState,
+  STATE_COMMANDS,
+} from "@/features/mail/components/editor-toolbar";
 import { escapeHtml } from "@/features/mail/reply";
 import { sanitizeForEditor } from "@/features/mail/sanitize";
 
@@ -31,24 +39,15 @@ export function normalizeLink(input: string) {
   return `https://${value}`;
 }
 
-type Command = {
-  label: string;
-  command: string;
-  text: string;
-  className?: string;
-};
+/** Inline styles for blocks, so mail programs show them as the editor does. */
+const BLOCK_STYLES = {
+  blockquote: "margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex;color:#555",
+  pre: "background:#f4f4f4;border:1px solid #ddd;border-radius:4px;padding:6px 8px;font-family:Consolas,'Courier New',monospace;white-space:pre-wrap",
+} as const;
 
-const COMMANDS: Command[] = [
-  { label: "굵게 (Ctrl+B)", command: "bold", text: "B", className: "font-bold" },
-  { label: "기울임 (Ctrl+I)", command: "italic", text: "I", className: "italic" },
-  { label: "밑줄 (Ctrl+U)", command: "underline", text: "U", className: "underline" },
-  { label: "취소선", command: "strikeThrough", text: "S", className: "line-through" },
-  { label: "글머리 기호 목록", command: "insertUnorderedList", text: "• 목록" },
-  { label: "번호 목록", command: "insertOrderedList", text: "1. 목록" },
-];
+const EMPTY_FORMAT: FormatState = { on: new Set(), fontName: "", fontSize: "", block: "" };
 
-const TOOL =
-  "rounded px-2 py-1 text-sm hover:bg-foreground/10 aria-pressed:bg-foreground/15";
+const TOOL = "rounded px-2 py-1 text-sm hover:bg-foreground/10";
 
 /**
  * A formatted-text editor for the mail body. `initialHtml` is placed as is,
@@ -69,11 +68,12 @@ export function RichEditor({
   onChange?: () => void;
 }) {
   const editor = useRef<HTMLDivElement>(null);
+  /** The editor's last selection, for controls that take focus (selects, panels, the link field). */
   const savedRange = useRef<Range | null>(null);
   const [linking, setLinking] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkError, setLinkError] = useState(false);
-  const [active, setActive] = useState<ReadonlySet<string>>(new Set());
+  const [format, setFormat] = useState<FormatState>(EMPTY_FORMAT);
 
   useImperativeHandle(
     ref,
@@ -102,19 +102,71 @@ export function RichEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const refreshActive = () =>
-    setActive(
-      new Set(
-        COMMANDS.filter(({ command }) => document.queryCommandState(command)).map(
-          ({ command }) => command,
-        ),
-      ),
-    );
+  const refreshFormat = useCallback(() => {
+    setFormat({
+      on: new Set(STATE_COMMANDS.filter((command) => document.queryCommandState(command))),
+      fontName: document
+        .queryCommandValue("fontName")
+        .split(",")[0]
+        .replace(/["']/g, "")
+        .trim()
+        .toLowerCase(),
+      fontSize: document.queryCommandValue("fontSize"),
+      block: document.queryCommandValue("formatBlock").toLowerCase(),
+    });
+  }, []);
 
-  const run = (command: string, value?: string) => {
-    editor.current?.focus();
+  // Remember where the selection is while it is inside the editor.
+  useEffect(() => {
+    const track = () => {
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      if (range && editor.current?.contains(range.commonAncestorContainer)) {
+        savedRange.current = range.cloneRange();
+        refreshFormat();
+      }
+    };
+    document.addEventListener("selectionchange", track);
+    return () => document.removeEventListener("selectionchange", track);
+  }, [refreshFormat]);
+
+  /** Focuses the editor with its last selection back in place. */
+  const restoreSelection = () => {
+    const element = editor.current;
+    if (!element) return;
+    element.focus();
+    const range = savedRange.current;
+    const selection = window.getSelection();
+    if (range && element.contains(range.commonAncestorContainer)) {
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  };
+
+  const exec = (command: string, value?: string, css = false) => {
+    restoreSelection();
+    // Fonts, sizes and colors as spans with inline styles, which mail
+    // programs show; plain tags such as <b> for the rest.
+    document.execCommand("styleWithCSS", false, String(css));
     document.execCommand(command, false, value);
-    refreshActive();
+    refreshFormat();
+    onChange?.();
+  };
+
+  /** Inserts HTML the toolbar built itself (tables); never untrusted HTML. */
+  const insertHtml = (html: string) => exec("insertHTML", html);
+
+  const toggleBlock = (tag: "blockquote" | "pre") => {
+    restoreSelection();
+    if (document.queryCommandValue("formatBlock").toLowerCase() === tag) {
+      document.execCommand("formatBlock", false, "div");
+    } else {
+      document.execCommand("formatBlock", false, tag);
+      const node = window.getSelection()?.anchorNode;
+      const block = (node instanceof Element ? node : node?.parentElement)?.closest(tag);
+      if (block && editor.current?.contains(block)) block.setAttribute("style", BLOCK_STYLES[tag]);
+    }
+    refreshFormat();
     onChange?.();
   };
 
@@ -148,10 +200,7 @@ export function RichEditor({
   };
 
   const startLink = () => {
-    const selection = window.getSelection();
-    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-    savedRange.current =
-      range && editor.current?.contains(range.commonAncestorContainer) ? range : null;
+    // The selection is already saved; the address field is about to take focus.
     setLinkUrl("");
     setLinkError(false);
     setLinking(true);
@@ -163,12 +212,8 @@ export function RichEditor({
       setLinkError(true);
       return;
     }
-    editor.current?.focus();
+    restoreSelection();
     const selection = window.getSelection();
-    if (savedRange.current) {
-      selection?.removeAllRanges();
-      selection?.addRange(savedRange.current);
-    }
     if (selection?.isCollapsed) {
       // No text selected: insert the address itself as the link text.
       document.execCommand(
@@ -183,6 +228,13 @@ export function RichEditor({
     onChange?.();
   };
 
+  const onKeyDown = (event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      startLink();
+    }
+  };
+
   return (
     <div className="flex flex-1 flex-col rounded-md border border-foreground/20 focus-within:border-foreground/60">
       <div
@@ -194,34 +246,7 @@ export function RichEditor({
           if ((event.target as HTMLElement).closest("button")) event.preventDefault();
         }}
       >
-        {COMMANDS.map(({ label: name, command, text, className }) => (
-          <button
-            key={command}
-            type="button"
-            title={name}
-            aria-label={name}
-            aria-pressed={active.has(command)}
-            onClick={() => run(command)}
-            className={`${TOOL} ${className ?? ""}`}
-          >
-            {text}
-          </button>
-        ))}
-        <span aria-hidden className="mx-1 h-5 w-px bg-foreground/10" />
-        <button type="button" title="링크" onClick={startLink} className={TOOL}>
-          링크
-        </button>
-        <button
-          type="button"
-          title="서식 지우기"
-          onClick={() => {
-            run("removeFormat");
-            run("unlink");
-          }}
-          className={TOOL}
-        >
-          서식 지우기
-        </button>
+        <EditorToolbar state={format} actions={{ exec, toggleBlock, insertHtml, startLink }}>
         {linking && (
           <span className="ml-2 flex items-center gap-1">
             <input
@@ -254,6 +279,7 @@ export function RichEditor({
             </button>
           </span>
         )}
+        </EditorToolbar>
       </div>
       <div
         ref={editor}
@@ -265,10 +291,9 @@ export function RichEditor({
         onInput={onChange}
         onPaste={onPaste}
         onDrop={onDrop}
-        onKeyUp={refreshActive}
-        onMouseUp={refreshActive}
+        onKeyDown={onKeyDown}
         // `contain: paint` keeps quoted content (even position:fixed) inside this box.
-        className="min-h-72 flex-1 overflow-auto px-3 py-2 text-sm outline-none [contain:paint] isolate [&_a]:text-blue-600 [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6"
+        className="min-h-72 flex-1 overflow-auto px-3 py-2 text-sm outline-none [contain:paint] isolate [&_a]:text-blue-600 [&_a]:underline [&_hr]:my-2 [&_hr]:border-foreground/30 [&_img]:max-w-full [&_td]:align-top [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6"
       />
     </div>
   );

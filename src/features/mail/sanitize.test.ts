@@ -7,6 +7,12 @@ function parse(html: string) {
 }
 
 describe("sanitizeForEditor", () => {
+  it("keeps the quote marker of a body on its way out, but not the editor's own", () => {
+    const html = sanitizeForEditor('<div data-mc="quote" data-mc-quote=""><p>old</p></div>');
+    expect(html).toContain("data-mc-quote");
+    expect(html).not.toContain('data-mc="quote"');
+  });
+
   const fragment = (html: string) => {
     const container = document.createElement("div");
     container.innerHTML = sanitizeForEditor(html);

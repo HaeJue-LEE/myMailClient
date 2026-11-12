@@ -300,18 +300,17 @@ export function createZohoBackend(account: ZohoAccount): MailBackend {
     untrashThreads: async (threadIds) => moveTo(threadIds, await systemFolder("INBOX")),
 
     sendMessage: async (input) => {
-      const { fields } = await messageFields(input);
       const original = input.threadId ? safeDecode(input.threadId) : null;
+      // Zoho's reply call quotes the original itself (checked by replying),
+      // so the app's quote goes; buildOutgoing then drops the marker.
+      const { fields } = await messageFields(
+        original && input.html ? { ...input, html: withoutQuote(input.html) } : input,
+      );
       if (original) {
         // Zoho's reply call threads the answer under the message it answers.
         await api(`/messages/${original.messageId}`, {
           method: "POST",
-          json: {
-            ...fields,
-            // Zoho quotes the original itself (checked by replying).
-            content: fields.mailFormat === "html" ? withoutQuote(fields.content) : fields.content,
-            action: "reply",
-          },
+          json: { ...fields, action: "reply" },
         });
       } else {
         await api("/messages", { method: "POST", json: fields });
