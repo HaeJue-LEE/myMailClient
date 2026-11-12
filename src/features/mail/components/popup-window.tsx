@@ -42,7 +42,7 @@ export function PopupWindow({ children }: { children: ReactNode }) {
   return (
     <PopupWindowContext.Provider value>
       {/* The scroll container toolbars stick to, as <main> is in the main window. */}
-      <main className="h-dvh overflow-y-auto">{children}</main>
+      <main className="relative h-dvh overflow-y-auto">{children}</main>
     </PopupWindowContext.Provider>
   );
 }

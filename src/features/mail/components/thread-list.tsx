@@ -292,7 +292,9 @@ function ThreadRows({
           return (
             <li
               key={thread.id}
-              className={`group flex items-center hover:bg-foreground/5 ${
+              // relative: the row contains its screen-reader-only text, which
+              // would otherwise be placed against the page and stretch it.
+              className={`group relative flex items-center hover:bg-foreground/5 ${
                 isChecked ? "bg-foreground/5" : ""
               }`}
             >

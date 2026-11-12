@@ -33,8 +33,10 @@ export function MailShell({ children }: { children: ReactNode }) {
       <Suspense fallback={<aside className="w-60 shrink-0 border-r border-foreground/10" />}>
         <Sidebar account={account} />
       </Suspense>
-      {/* Scroll container for the views; their toolbars stick to its top. */}
-      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+      {/* Scroll container for the views; their toolbars stick to its top.
+          relative: absolutely placed content (e.g. screen-reader-only text)
+          stays inside it instead of lengthening the page (a second scrollbar). */}
+      <main className="relative min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
   );
 }
