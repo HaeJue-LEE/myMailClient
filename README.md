@@ -1,4 +1,4 @@
-# Mail Client
+# Mail Client (myMailClient)
 
 Gmail(Gmail API)과 네이버 등 IMAP/SMTP 메일 계정을 함께 쓰는 Windows 데스크톱 이메일 클라이언트입니다.
 계정은 여러 개 추가할 수 있고, 왼쪽 아래 계정 선택이나 **메일 계정** 화면에서 사용할 계정을 고릅니다.
