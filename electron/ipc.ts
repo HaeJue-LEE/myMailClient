@@ -70,6 +70,13 @@ import { verifySmtp } from "./imap/smtp";
 import { verifyPop3 } from "./pop3/client";
 import { removeLocalStore } from "./pop3/store";
 import { SHORTCUT_PLACES, setShortcut, shortcutStatus } from "./shortcuts";
+import {
+  cancelUpdateDownload,
+  checkForUpdate,
+  downloadUpdate,
+  getUpdateStatus,
+  restartToUpdate,
+} from "./updater";
 import { revokeZoho, signInZoho } from "./zoho/auth";
 import { dropZohoCaches } from "./zoho/backend";
 import {
@@ -181,6 +188,29 @@ export function registerMailHandlers(options: {
         await setActiveId(zoho.id);
         options.onSignedIn();
         return { id: zoho.id, kind: "zoho", email: zoho.email, name: zoho.name };
+      },
+    },
+    getUpdateStatus: {
+      input: noInput,
+      run: getUpdateStatus,
+    },
+    checkForUpdate: {
+      input: noInput,
+      run: () => checkForUpdate({ manual: true }),
+    },
+    downloadUpdate: {
+      input: noInput,
+      run: async () => downloadUpdate(),
+    },
+    cancelUpdateDownload: {
+      input: noInput,
+      run: async () => cancelUpdateDownload(),
+    },
+    restartToUpdate: {
+      input: noInput,
+      run: async () => {
+        if (!restartToUpdate()) throw new InvalidRequestError("No update is ready to install");
+        return null;
       },
     },
     setShortcut: {

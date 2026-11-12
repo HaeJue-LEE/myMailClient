@@ -54,6 +54,14 @@ Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로
 | `npm test` | 단위 테스트 |
 | `npm run typecheck` / `npm run lint` | 타입 검사 / ESLint |
 
+### 자동 업데이트
+
+`MailClient-<버전>.exe`로 실행한 앱은 시작할 때 한 번 GitHub의 최신 릴리스를 확인합니다(실행 중에는 **메일 계정 → 업데이트 확인**을 누를 때만). 새 버전이 있으면 업데이트할지 묻고, 업데이트하면 진행 상태를 보여 주며 받아 크기·SHA-256(GitHub가 계산한 값)·패키지 형식을 확인한 뒤 다시 시작할지 묻습니다. 나중에 하면 앱을 종료할 때 실행 파일을 같은 이름으로 바꿔 둡니다(다음 실행 때 새 버전으로 풀림). **메일 계정** 화면이나 왼쪽 아래 알림의 **다시 시작**을 누르면 바로 적용합니다.
+
+- 릴리스에는 `npm run dist:public`으로 만든 `MailClient-<버전>.exe`를 그 이름 그대로 올려야 하고, 태그는 `v<버전>`이어야 합니다.
+- `npm run dev`와 `-local.exe`(Google 키가 들어간 빌드)는 자동 업데이트를 하지 않습니다.
+- 업데이트를 시험하려면 `MAIL_CLIENT_UPDATE_FEED=<로컬 주소>`를 설정해 `npm run dist:public`으로 빌드합니다. 이렇게 만든 exe는 배포하지 마세요.
+
 `release/` 폴더의 `.exe` 파일 하나만 있으면 설치 없이 실행됩니다(처음 실행할 때 exe 옆에 `Mail Client` 폴더를 만듭니다).
 코드 서명을 하지 않았으므로 처음 실행할 때 Windows SmartScreen 경고가 나오면 **추가 정보 → 실행**을 누릅니다.
 

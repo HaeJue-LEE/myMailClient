@@ -108,6 +108,37 @@ export type DraftContent = {
 /** Gmail's attachment limit is 25 MB; base64 and the body need headroom. */
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
+/**
+ * Where updating from GitHub releases stands. Only copies started through
+ * the launcher update; `reason` says why one does not (`dev`: no launcher,
+ * e.g. `npm run dev`; `local`: a build with a built-in Google client).
+ */
+export type UpdateStatus = {
+  currentVersion: string;
+  /**
+   * `available`: a later release was found and waits for the user to say
+   * whether to download it; `ready`: downloaded, installed on restart.
+   */
+  state:
+    | "idle"
+    | "unsupported"
+    | "checking"
+    | "latest"
+    | "available"
+    | "downloading"
+    | "ready"
+    | "error";
+  reason?: "dev" | "local";
+  /** The release found (available, downloading, ready, or failed to download). */
+  version?: string;
+  received?: number;
+  total?: number;
+  /** The release's notes (Markdown, untrusted: shown as text only). */
+  notes?: string;
+  checkedAt?: number;
+  error?: "check" | "download";
+};
+
 /** What the app can do as set up now. */
 export type AppFeatures = {
   /**
@@ -152,6 +183,14 @@ export type MailMethods = {
    * Zoho's approval page in the system browser and resolves once approved.
    */
   loginZoho: () => Account;
+  getUpdateStatus: () => UpdateStatus;
+  /** Looks for a later release now. One found is offered, not downloaded. */
+  checkForUpdate: () => UpdateStatus;
+  /** Downloads the release offered, in the background; the status shows the progress. */
+  downloadUpdate: () => UpdateStatus;
+  cancelUpdateDownload: () => UpdateStatus;
+  /** Installs the downloaded update: the app quits and starts again as the new version. */
+  restartToUpdate: () => null;
   /** Creates or removes the desktop or Start menu shortcut to the launcher. */
   setShortcut: (input: { place: "desktop" | "startMenu"; enabled: boolean }) => AppFeatures;
   /** The account in use; null when no account has been added. */
@@ -273,6 +312,11 @@ export const MAIL_METHODS = [
   "saveZohoClient",
   "removeZohoClient",
   "loginZoho",
+  "getUpdateStatus",
+  "checkForUpdate",
+  "downloadUpdate",
+  "cancelUpdateDownload",
+  "restartToUpdate",
   "setShortcut",
   "getAccount",
   "listAccounts",

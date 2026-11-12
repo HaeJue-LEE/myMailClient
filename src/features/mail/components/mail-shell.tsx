@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, type ReactNode } from "react";
 import { MailApiError, useAccount } from "@/features/mail/api";
+import { UpdatePrompt } from "@/features/mail/components/app-update";
 import { Sidebar } from "@/features/mail/components/sidebar";
 
 export function Unavailable() {
@@ -37,6 +38,7 @@ export function MailShell({ children }: { children: ReactNode }) {
           relative: absolutely placed content (e.g. screen-reader-only text)
           stays inside it instead of lengthening the page (a second scrollbar). */}
       <main className="relative min-w-0 flex-1 overflow-y-auto">{children}</main>
+      <UpdatePrompt />
     </div>
   );
 }

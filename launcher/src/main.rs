@@ -7,6 +7,11 @@
 //! itself keeps its data in %APPDATA%), and no folder this launcher did not
 //! create is ever replaced.
 //!
+//! The app updates itself by putting a newer exe in this one's place and
+//! starting it with `MAIL_CLIENT_WAIT_PID` set to its own process id: this
+//! launcher then waits for that app to end before replacing its folder. Every
+//! later launcher must keep accepting that handoff.
+//!
 //! The exe ends with a trailer written by scripts/dist-public.mjs:
 //! `[zip][package id][id length: u32][zip length: u64]["MCPKG001"]`, the id
 //! being a hash of the zip, so a rebuilt package is unpacked again.
@@ -33,6 +38,14 @@ const APP_EXE: &str = "Mail Client.exe";
 const MARKER: &str = ".mailclient-package";
 const PAYLOAD: &str = "payload.zip";
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// Set by the app when it starts this launcher to install an update.
+const WAIT_PID_VAR: &str = "MAIL_CLIENT_WAIT_PID";
+/// Longest wait for the updating app to end (it may be saving drafts).
+const WAIT_FOR_APP_MS: u32 = 60_000;
+/// Renaming the app folder fails while any of its processes still runs;
+/// renderer and GPU processes can outlive the main one by a moment.
+const SWAP_ATTEMPTS: u32 = 20;
+const SWAP_RETRY: Duration = Duration::from_millis(500);
 
 // --- Win32: a message box and a borderless "installing" popup ---------------
 
@@ -79,6 +92,13 @@ extern "system" {
     fn ReleaseDC(hwnd: Hwnd, dc: *mut core::ffi::c_void) -> i32;
     fn DrawTextW(dc: *mut core::ffi::c_void, text: *const u16, len: i32, rect: *mut Rect, format: u32) -> i32;
     fn SetWindowPos(hwnd: Hwnd, after: Hwnd, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
+}
+
+#[link(name = "kernel32")]
+extern "system" {
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> Hwnd;
+    fn WaitForSingleObject(handle: Hwnd, milliseconds: u32) -> u32;
+    fn CloseHandle(handle: Hwnd) -> i32;
 }
 
 #[link(name = "gdi32")]
@@ -346,17 +366,44 @@ fn swap_in(base: &Path, unpacked: &Path) -> Result<(), String> {
             ));
         }
         let old = base.join(format!("{APP_DIR}.old-{}", std::process::id()));
-        if fs::rename(&app_dir, &old).is_err() {
-            return Err("Mail Client가 실행 중이라 새 버전으로 바꾸지 못했습니다. 열려 있는 Mail Client 창을 모두 닫고 다시 실행해 주세요.".into());
+        let mut attempt = 1;
+        while fs::rename(&app_dir, &old).is_err() {
+            if attempt >= SWAP_ATTEMPTS {
+                return Err("Mail Client가 실행 중이라 새 버전으로 바꾸지 못했습니다. 열려 있는 Mail Client 창을 모두 닫고 다시 실행해 주세요.".into());
+            }
+            attempt += 1;
+            thread::sleep(SWAP_RETRY);
         }
         let _ = fs::remove_dir_all(&old);
     }
     fs::rename(unpacked, &app_dir).map_err(|e| format!("앱 폴더를 만들지 못했습니다: {e}"))
 }
 
+/// When started by the app to install an update: waits (bounded) for that app
+/// to end, so its folder can be replaced. True when this is such a start.
+fn wait_for_updating_app() -> bool {
+    let Some(pid) = std::env::var(WAIT_PID_VAR).ok().and_then(|value| value.parse::<u32>().ok()) else {
+        return false;
+    };
+    // SYNCHRONIZE: enough to wait on it. A process already gone gives no handle.
+    unsafe {
+        let handle = OpenProcess(0x0010_0000, 0, pid);
+        if !handle.is_null() {
+            WaitForSingleObject(handle, WAIT_FOR_APP_MS);
+            CloseHandle(handle);
+        }
+    }
+    true
+}
+
 fn run() -> Result<(), String> {
+    let updating = wait_for_updating_app();
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let base = exe.parent().ok_or("실행 파일의 폴더를 알 수 없습니다.")?.to_path_buf();
+    // Out of the app folder whatever started us (the app starts this launcher
+    // to update): Windows will not rename a folder that is a process's
+    // working directory, so the new app could not be swapped in.
+    let _ = std::env::set_current_dir(&base);
     let package = read_package(exe.clone())?;
     let app_dir = base.join(APP_DIR);
     // Not an update: the app is set up here for the first time.
@@ -376,7 +423,13 @@ fn run() -> Result<(), String> {
         }
         drop(lock);
         let _ = fs::remove_file(base.join(format!("{APP_DIR}.unpacking.lock")));
-        result?;
+        if let Err(error) = result {
+            // An update that could not go in yet: start the version in place
+            // rather than nothing; the next start tries again.
+            if !(updating && app_dir.join(APP_EXE).is_file()) {
+                return Err(error);
+            }
+        }
     }
 
     // Options are passed on, e.g. --user-data-dir to try it with a fresh profile.
@@ -385,7 +438,8 @@ fn run() -> Result<(), String> {
         .current_dir(&app_dir)
         // What shortcuts should point at: this exe, which also applies updates.
         .env("MAIL_CLIENT_LAUNCHER", &exe)
-        .env_remove("MAIL_CLIENT_FIRST_INSTALL");
+        .env_remove("MAIL_CLIENT_FIRST_INSTALL")
+        .env_remove(WAIT_PID_VAR);
     if first_install && !current {
         // The app then offers to make a desktop shortcut, once.
         app.env("MAIL_CLIENT_FIRST_INSTALL", "1");

@@ -41,8 +41,14 @@ function run(command, args, options = {}) {
   }
 }
 
-const bundle = (client) =>
-  Promise.all(electronBuildOptions(client).map((options) => build(options)));
+const bundle = (client, updateFeed = "") =>
+  Promise.all(electronBuildOptions(client, updateFeed).map((options) => build(options)));
+
+/**
+ * MAIL_CLIENT_UPDATE_FEED replaces the GitHub release feed in the exe, to
+ * test updating against a local feed. Never set it for a release.
+ */
+const UPDATE_FEED = process.env.MAIL_CLIENT_UPDATE_FEED ?? "";
 
 function localClient() {
   const file = existsSync(ENV_FILE) ? parseEnv(readFileSync(ENV_FILE, "utf8")) : {};
@@ -92,10 +98,15 @@ try {
         ? "이 PC용 빌드: .env.local의 Google 클라이언트를 넣습니다. 남에게 주지 마세요."
         : "이 PC용 빌드: .env.local이 없어 Google 로그인 없이 빌드합니다.",
     );
-    await bundle(client);
+    await bundle(client, UPDATE_FEED);
   } else {
     console.log("배포용 빌드: Google 클라이언트를 넣지 않습니다.");
-    await bundle(null);
+    await bundle(null, UPDATE_FEED);
+  }
+  if (UPDATE_FEED) {
+    console.warn(`
+*** 업데이트 시험용 빌드: 업데이트를 ${UPDATE_FEED}에서 확인합니다. 배포하지 마세요. ***
+`);
   }
   run("npx", ["electron-builder", "--win", "--dir"]);
   buildLauncher();

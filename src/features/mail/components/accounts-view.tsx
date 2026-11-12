@@ -17,6 +17,7 @@ import { AccountAvatar } from "@/features/mail/components/account-avatar";
 import { Icon } from "@/features/mail/components/icon";
 import { useDragReorder } from "@/features/mail/components/use-drag-reorder";
 import { MailAccountForm } from "@/features/mail/components/mail-account-form";
+import { AppUpdate } from "@/features/mail/components/app-update";
 import type { Account } from "@/features/mail/mail-accounts";
 
 const KIND_LABEL: Record<Account["kind"], string> = {
@@ -145,6 +146,7 @@ export function AccountsView() {
           계정에서만 쓸 수 있습니다.
         </p>
 
+        <AppUpdate />
         <Shortcuts />
       </div>
     </div>

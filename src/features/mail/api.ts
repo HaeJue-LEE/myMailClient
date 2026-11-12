@@ -132,6 +132,58 @@ export function useRemoveGoogleClient() {
   });
 }
 
+const updateKey = ["update"];
+
+/**
+ * Where updating stands. Polled: every second while a download runs, and
+ * every two seconds until the app's one check at start is done.
+ */
+export function useUpdateStatus() {
+  return useQuery({
+    queryKey: updateKey,
+    queryFn: () => unwrap(bridge().getUpdateStatus()),
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      if (state === "unsupported") return false;
+      if (state === "downloading" || state === "checking") return 1000;
+      // The app checks once, a few seconds after start: catch that result at
+      // once. After it nothing changes unless the user acts here.
+      if (state === "idle" && !query.state.data?.checkedAt) return 2000;
+      return false;
+    },
+  });
+}
+
+export function useCheckForUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(bridge().checkForUpdate()),
+    onSuccess: (status) => queryClient.setQueryData(updateKey, status),
+  });
+}
+
+/** Downloads the release offered (after the user agreed to update). */
+export function useDownloadUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(bridge().downloadUpdate()),
+    onSuccess: (status) => queryClient.setQueryData(updateKey, status),
+  });
+}
+
+export function useCancelUpdateDownload() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(bridge().cancelUpdateDownload()),
+    onSuccess: (status) => queryClient.setQueryData(updateKey, status),
+  });
+}
+
+/** Quits and starts again as the downloaded version. */
+export function useRestartToUpdate() {
+  return useMutation({ mutationFn: () => unwrap(bridge().restartToUpdate()) });
+}
+
 /** Keeps the Zoho API client the user entered, so Zoho sign-in can start. */
 export function useSaveZohoClient() {
   const queryClient = useQueryClient();

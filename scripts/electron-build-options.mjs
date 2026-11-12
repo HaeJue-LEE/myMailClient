@@ -20,8 +20,9 @@ export const NO_OAUTH_CLIENT_NOTICE =
 /**
  * Main and preload bundles. The OAuth client, when given, is inlined into
  * main; null leaves both values empty, which turns Google sign-in off.
+ * `updateFeed` replaces the GitHub release feed, for testing the updater only.
  */
-export function electronBuildOptions(client) {
+export function electronBuildOptions(client, updateFeed = "") {
   const { GOOGLE_CLIENT_ID = "", GOOGLE_CLIENT_SECRET = "" } = client ?? {};
   const common = {
     bundle: true,
@@ -40,6 +41,8 @@ export function electronBuildOptions(client) {
       define: {
         "process.env.GOOGLE_CLIENT_ID": JSON.stringify(GOOGLE_CLIENT_ID),
         "process.env.GOOGLE_CLIENT_SECRET": JSON.stringify(GOOGLE_CLIENT_SECRET),
+        // Empty except in builds made to test the updater (see electron/updater.ts).
+        "process.env.MAIL_CLIENT_UPDATE_FEED": JSON.stringify(updateFeed),
       },
     },
     {

@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 import { popupComposeHref, popupThreadHref } from "@/features/mail/routes";
 import { mailPageUrl, resolveAppFile } from "./app-protocol";
 import { registerMailHandlers } from "./ipc";
+import { startUpdater } from "./updater";
 import { offerShortcutsOnFirstInstall } from "./shortcuts";
 import { initialBounds, rememberBounds, type WindowKind } from "./window-state";
 
@@ -214,5 +215,6 @@ if (!app.requestSingleInstanceLock()) {
       openComposeWindow,
     });
     createWindow();
+    startUpdater();
   });
 }

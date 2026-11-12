@@ -9,6 +9,7 @@ import {
   useSwitchAccount,
 } from "@/features/mail/api";
 import { AccountAvatar } from "@/features/mail/components/account-avatar";
+import { UpdateNotice } from "@/features/mail/components/app-update";
 import { Icon } from "@/features/mail/components/icon";
 import type { Account } from "@/features/mail/mail-accounts";
 import {
@@ -115,6 +116,7 @@ export function Sidebar({ account }: { account: Account }) {
           </Link>
         </div>
       </nav>
+      <UpdateNotice />
       <div className="border-t border-foreground/10 p-2 text-xs">
         <p className="truncate px-1 pb-1.5 opacity-60" title={account.email}>
           {account.email}

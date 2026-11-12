@@ -27,6 +27,7 @@ describe("build options", () => {
     expect(main.define).toEqual({
       "process.env.GOOGLE_CLIENT_ID": '"id"',
       "process.env.GOOGLE_CLIENT_SECRET": '"secret"',
+      "process.env.MAIL_CLIENT_UPDATE_FEED": '""',
     });
     expect(preload.define).toBeUndefined();
 
@@ -34,6 +35,7 @@ describe("build options", () => {
     expect(withoutClient.define).toEqual({
       "process.env.GOOGLE_CLIENT_ID": '""',
       "process.env.GOOGLE_CLIENT_SECRET": '""',
+      "process.env.MAIL_CLIENT_UPDATE_FEED": '""',
     });
   });
 });
