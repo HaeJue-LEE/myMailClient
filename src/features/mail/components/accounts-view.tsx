@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import {
-  MailApiError,
   useAccount,
   useAccounts,
+  useAppFeatures,
   useChooseAccountAvatar,
-  useLogin,
   useMailAccount,
   useMoveAccount,
   useRemoveAccount,
   useRemoveAccountAvatar,
+  useSetShortcut,
   useSwitchAccount,
 } from "@/features/mail/api";
 import { AccountAvatar } from "@/features/mail/components/account-avatar";
@@ -35,7 +35,6 @@ type FormState = { mode: "add" } | { mode: "edit"; id: string };
 export function AccountsView() {
   const accounts = useAccounts();
   const { data: active } = useAccount();
-  const login = useLogin();
   const switchAccount = useSwitchAccount();
   const move = useMoveAccount();
   const [form, setForm] = useState<FormState | null>(null);
@@ -46,7 +45,6 @@ export function AccountsView() {
   );
   const [message, setMessage] = useState<string | null>(null);
   const list = accounts.data ?? [];
-  const hasGoogle = list.some((account) => account.kind === "gmail");
   const openForm = (next: FormState) => {
     setMessage(null);
     setForm(next);
@@ -57,19 +55,11 @@ export function AccountsView() {
       <div className="sticky top-0 z-10 flex h-12 items-center gap-3 border-b border-foreground/10 bg-background px-4">
         <h1 className="text-sm font-semibold">메일 계정</h1>
         <span className="text-xs opacity-60">{list.length}개</span>
-        {!hasGoogle && accounts.isSuccess && (
-          <button
-            type="button"
-            onClick={() => login.mutate()}
-            className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md bg-foreground/5 px-2.5 py-1.5 text-sm hover:bg-foreground/10"
-          >
-            {login.isPending ? "브라우저에서 로그인을 완료해 주세요…" : "Google 계정 추가"}
-          </button>
-        )}
+        {/* Gmail through Google sign-in is the form's first choice. */}
         <button
           type="button"
           onClick={() => openForm({ mode: "add" })}
-          className={`${hasGoogle || !accounts.isSuccess ? "ml-auto" : ""} flex shrink-0 items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-sm font-medium text-background`}
+          className={`ml-auto flex shrink-0 items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-sm font-medium text-background`}
         >
           <Icon name="personAdd" />
           메일 계정 추가
@@ -77,13 +67,6 @@ export function AccountsView() {
       </div>
 
       <div className="max-w-3xl space-y-4 p-4">
-        {login.error && (
-          <p role="alert" className="text-sm text-red-600">
-            {login.error instanceof MailApiError && login.error.code === "login_cancelled"
-              ? "Google 로그인이 취소되었습니다."
-              : "Google 로그인에 실패했습니다. 권한을 모두 허용했는지 확인하고 다시 시도해 주세요."}
-          </p>
-        )}
         {switchAccount.isError && (
           <p role="alert" className="text-sm text-red-600">
             계정을 바꾸지 못했습니다. 다시 시도해 주세요.
@@ -160,8 +143,59 @@ export function AccountsView() {
           선택에서 바꿀 수 있습니다. Google 주소록, 보관, 중요 편지함은 Google
           계정에서만 쓸 수 있습니다.
         </p>
+
+        <Shortcuts />
       </div>
     </div>
+  );
+}
+
+const SHORTCUT_LABELS = [
+  ["desktop", "바탕 화면"],
+  ["startMenu", "시작 메뉴"],
+] as const;
+
+/**
+ * Desktop and Start menu shortcuts to the launcher exe. Shown only when the
+ * app was started through it (not in `npm run dev` or an unpacked folder).
+ */
+function Shortcuts() {
+  const features = useAppFeatures();
+  const setShortcut = useSetShortcut();
+  const shortcuts = features.data?.shortcuts;
+  if (!shortcuts?.available) return null;
+
+  return (
+    <section aria-labelledby="shortcuts-title" className="space-y-2 rounded-md border border-foreground/15 px-4 py-3">
+      <h2 id="shortcuts-title" className="text-sm font-semibold">
+        바로가기
+      </h2>
+      <ul className="space-y-1.5">
+        {SHORTCUT_LABELS.map(([place, label]) => (
+          <li key={place} className="flex items-center gap-3 text-sm">
+            <span className="w-20 shrink-0">{label}</span>
+            <span className="flex-1 text-xs opacity-60">{shortcuts[place] ? "있음" : "없음"}</span>
+            <button
+              type="button"
+              disabled={setShortcut.isPending}
+              onClick={() => setShortcut.mutate({ place, enabled: !shortcuts[place] })}
+              className={ROW_BUTTON}
+            >
+              {shortcuts[place] ? "지우기" : "만들기"}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {setShortcut.isError && (
+        <p role="alert" className="text-xs text-red-600">
+          바로가기를 바꾸지 못했습니다. 다시 시도해 주세요.
+        </p>
+      )}
+      <p className="text-xs opacity-60">
+        바로가기는 이 앱을 설치한 실행 파일을 가리킵니다. 새 버전 실행 파일을 같은 이름으로
+        바꿔 두면 바로가기로 실행할 때 새 버전으로 바뀝니다.
+      </p>
+    </section>
   );
 }
 

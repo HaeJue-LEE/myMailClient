@@ -6,6 +6,12 @@ Gmail(Gmail API)과 네이버 등 IMAP/SMTP 메일 계정을 함께 쓰는 Windo
 
 ## 준비
 
+Google 로그인(Gmail API·Google 주소록)은 **선택 사항**입니다. 아래 설정 없이 빌드하면 Google 로그인만 빠지고,
+IMAP·POP3 계정(Gmail도 앱 비밀번호로 IMAP 연결 가능)은 그대로 쓸 수 있습니다. 남에게 나눠 줄 실행 파일은
+`.env.local` 없이 빌드하세요. 있으면 클라이언트 ID와 시크릿이 실행 파일 안에 들어갑니다.
+
+Google 로그인을 쓰려면:
+
 1. [Google Cloud Console](https://console.cloud.google.com/)에서 **Gmail API**와 **People API**(연락처)를 사용 설정합니다.
 2. **Google 인증 플랫폼 → 대상**에서 사용할 Gmail 계정을 테스트 사용자로 추가합니다.
    **데이터 액세스**에는 다음 범위를 추가합니다.
@@ -29,6 +35,7 @@ Gmail(Gmail API)과 네이버 등 IMAP/SMTP 메일 계정을 함께 쓰는 Windo
 | 명령어 | 설명 |
 | --- | --- |
 | `npm run dist` | 실행 파일 생성 → `release/MailClient-<버전>-portable.exe` |
+| `npm run dist:public` | 남에게 줄 실행 파일 생성 → `release/MailClient-<버전>.exe`. Google 키를 넣지 않고, 처음 실행하면 exe 옆 `Mail Client` 폴더에 앱을 풀어 둔 뒤 실행합니다(이후 실행은 바로 시작). Rust(`cargo`)가 필요합니다 |
 | `npm start` | 빌드 후 앱 실행 |
 | `npm run dev` | 개발 모드 (Next 개발 서버 + 앱). `src/` 수정은 즉시 반영, `electron/`·`.env.local` 수정은 앱 자동 재시작. 앱 창을 닫으면 종료 |
 | `npm test` | 단위 테스트 |
@@ -66,4 +73,4 @@ scripts/             Electron 번들 스크립트 (esbuild)
 
 - OAuth 앱이 "테스트" 상태이면 **리프레시 토큰이 7일 후 만료**되어 다시 로그인해야 합니다.
 - `gmail.modify`는 Google의 **제한된 범위**입니다. 불특정 사용자에게 배포하려면 OAuth 앱 검증이 필요합니다.
-- 클라이언트 ID와 시크릿은 실행 파일에 포함됩니다. 데스크톱 앱용 클라이언트에서는 Google도 이 값을 비밀로 취급하지 않으며, PKCE가 로그인을 보호합니다.
+- `.env.local`이 있으면 클라이언트 ID와 시크릿이 실행 파일에 포함됩니다. 데스크톱 앱용 클라이언트에서는 Google도 이 값을 비밀로 취급하지 않으며, PKCE가 로그인을 보호합니다. 다만 실행 파일을 공개하면 누구나 이 값을 꺼내 같은 앱 이름으로 로그인 화면을 띄울 수 있으니, 배포용은 `.env.local` 없이 빌드하세요.

@@ -8,6 +8,7 @@ import {
   type Account,
   type AccountPreset,
   defaultPort,
+  GOOGLE_SIGN_IN_CHOICE,
   isHostname,
   isPort,
   type MailAccountSettings,
@@ -20,6 +21,7 @@ import {
   type ServerSecurity,
   SENT_COPY_SUBJECT_PREFIX,
 } from "@/features/mail/mail-accounts";
+import { GoogleAccountSetup } from "@/features/mail/components/google-account-setup";
 import { mailServerErrorText } from "@/features/mail/server-errors";
 
 const INPUT_CLASS =
@@ -30,6 +32,12 @@ const SECURITY_OPTIONS: [value: ServerSecurity, label: string][] = [
   ["starttls", "STARTTLS"],
   ["none", "암호화 없음"],
 ];
+
+/** Example addresses for providers whose address form is known. */
+const EMAIL_PLACEHOLDERS: Record<string, string> = {
+  naver: "id@naver.com",
+  "gmail-imap": "id@gmail.com",
+};
 
 /** A server as typed; the port stays text until it is checked on save. */
 type ServerDraft = { host: string; port: string; security: ServerSecurity };
@@ -77,6 +85,8 @@ export function MailAccountForm({
 }) {
   const save = useSaveMailAccount();
   const [preset, setPreset] = useState<AccountPreset>(ACCOUNT_PRESETS[0]);
+  // Gmail through Google sign-in comes first in the list; it has no server fields.
+  const [googleChosen, setGoogleChosen] = useState(!editing);
   const [name, setName] = useState(editing?.name ?? "");
   const [email, setEmail] = useState(editing?.email ?? "");
   // Follows the address until the user types a different user name.
@@ -100,6 +110,7 @@ export function MailAccountForm({
   const notes = (editing ? presetFor(editing) : preset)?.notes ?? [];
 
   const choosePreset = (id: string) => {
+    setGoogleChosen(id === GOOGLE_SIGN_IN_CHOICE.id);
     const next = ACCOUNT_PRESETS.find((item) => item.id === id) ?? preset;
     setPreset(next);
     setIncoming(toDraft(next.incoming));
@@ -159,6 +170,33 @@ export function MailAccountForm({
     );
   const serverProblem = Object.keys(problems).some((key) => key.includes("."));
 
+  const serviceSelect = !editing && (
+    <label className="block max-w-xs text-sm">
+      <span className="mb-1 block opacity-70">메일 서비스</span>
+      <select
+        value={googleChosen ? GOOGLE_SIGN_IN_CHOICE.id : preset.id}
+        onChange={(event) => choosePreset(event.target.value)}
+        className={INPUT_CLASS}
+      >
+        {[GOOGLE_SIGN_IN_CHOICE, ...ACCOUNT_PRESETS].map((item) => (
+          <option key={item.id} value={item.id} className="bg-background text-foreground">
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  if (!editing && googleChosen) {
+    return (
+      <div aria-label={title} className="space-y-4 rounded-md border border-foreground/15 p-4">
+        <p className="text-sm font-semibold">{title}</p>
+        {serviceSelect}
+        <GoogleAccountSetup onSignedIn={onSaved} onCancel={onCancel} />
+      </div>
+    );
+  }
+
   return (
     <form
       onSubmit={submit}
@@ -168,22 +206,7 @@ export function MailAccountForm({
     >
       <p className="text-sm font-semibold">{title}</p>
 
-      {!editing && (
-        <label className="block max-w-xs text-sm">
-          <span className="mb-1 block opacity-70">메일 서비스</span>
-          <select
-            value={preset.id}
-            onChange={(event) => choosePreset(event.target.value)}
-            className={INPUT_CLASS}
-          >
-            {ACCOUNT_PRESETS.map((item) => (
-              <option key={item.id} value={item.id} className="bg-background text-foreground">
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {serviceSelect}
       {notes.length > 0 && (
         <ul className="list-disc space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 py-3 pl-8 pr-4 text-xs">
           {notes.map((note) => (
@@ -199,7 +222,7 @@ export function MailAccountForm({
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder={preset.id === "naver" ? "id@naver.com" : "me@example.com"}
+            placeholder={EMAIL_PLACEHOLDERS[preset.id] ?? "me@example.com"}
             spellCheck={false}
             autoFocus
             {...field("email")}

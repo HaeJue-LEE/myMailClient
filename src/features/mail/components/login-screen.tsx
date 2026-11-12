@@ -2,16 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MailApiError, useAccount, useLogin } from "@/features/mail/api";
+import { MailApiError, useAccount, useAppFeatures, useLogin } from "@/features/mail/api";
 import { MailAccountForm } from "@/features/mail/components/mail-account-form";
 import { Unavailable } from "@/features/mail/components/mail-shell";
 
-/** Shown while no account exists: sign in to Google, or add an IMAP account. */
+/** Shown while no account exists: sign in to Google (if this build can), or add a mail account. */
 export function LoginScreen() {
   const router = useRouter();
   const { data: account, error: accountError } = useAccount();
   const { mutate: login, isPending, error } = useLogin();
   const [addingMailAccount, setAddingMailAccount] = useState(false);
+  // Builds without a Google OAuth client offer mail accounts only.
+  const googleSignIn = useAppFeatures().data?.googleSignIn ?? false;
 
   useEffect(() => {
     if (account) router.replace("/mail");
@@ -50,20 +52,26 @@ export function LoginScreen() {
         </p>
       )}
       <div className="flex flex-col items-stretch gap-2">
-        {/* Stays enabled while waiting: clicking again reopens the browser and cancels the old attempt. */}
-        <button
-          type="button"
-          onClick={() => login()}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-        >
-          {isPending ? "브라우저 다시 열기" : "Google 계정으로 로그인"}
-        </button>
+        {googleSignIn && (
+          // Stays enabled while waiting: clicking again reopens the browser and cancels the old attempt.
+          <button
+            type="button"
+            onClick={() => login()}
+            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+          >
+            {isPending ? "브라우저 다시 열기" : "Google 계정으로 로그인"}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setAddingMailAccount(true)}
-          className="rounded-md border border-foreground/20 px-4 py-2 text-sm font-medium hover:bg-foreground/5"
+          className={
+            googleSignIn
+              ? "rounded-md border border-foreground/20 px-4 py-2 text-sm font-medium hover:bg-foreground/5"
+              : "rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+          }
         >
-          네이버 등 다른 메일 계정 추가
+          {googleSignIn ? "네이버 등 다른 메일 계정 추가" : "메일 계정 추가"}
         </button>
       </div>
     </main>

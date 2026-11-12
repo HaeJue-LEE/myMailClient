@@ -17,7 +17,8 @@ import electronPath from "electron";
 import { context } from "esbuild";
 import {
   electronBuildOptions,
-  requireOAuthClient,
+  NO_OAUTH_CLIENT_NOTICE,
+  oauthClientFrom,
 } from "./electron-build-options.mjs";
 
 const ENV_FILE = ".env.local";
@@ -30,12 +31,7 @@ function readOAuthClient() {
   const file = existsSync(ENV_FILE)
     ? parseEnv(readFileSync(ENV_FILE, "utf8"))
     : {};
-  const env = { ...process.env, ...file };
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return null;
-  return {
-    GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
-  };
+  return oauthClientFrom({ ...process.env, ...file });
 }
 
 // --- the Electron process -------------------------------------------------
@@ -131,7 +127,9 @@ async function disposeBundles() {
 
 // --- lifecycle ------------------------------------------------------------
 
-let client = readOAuthClient() ?? requireOAuthClient({});
+/** Null builds the app without Google sign-in. */
+let client = readOAuthClient();
+if (!client) log(NO_OAUTH_CLIENT_NOTICE);
 
 async function stop(code) {
   stopping = true;
@@ -149,7 +147,8 @@ process.on("exit", () => app?.kill());
 // The OAuth client is inlined at build time, so a change needs new contexts.
 watchFile(ENV_FILE, { interval: 1000 }, async () => {
   const next = readOAuthClient();
-  if (!next) {
+  // Half-edited values keep the last good client rather than drop sign-in.
+  if (!next && client) {
     log(`${ENV_FILE}에 Google 클라이언트 값이 없어 이전 값을 유지합니다.`);
     return;
   }

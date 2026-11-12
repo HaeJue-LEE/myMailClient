@@ -30,7 +30,20 @@ import {
   setActiveId,
   storeMailAccount,
 } from "./accounts";
-import { getSession, LoginCancelledError, signIn, signOut } from "./auth";
+import {
+  dropSession,
+  getSession,
+  LoginCancelledError,
+  signIn,
+  signOut,
+} from "./auth";
+import {
+  clientHint,
+  getGoogleClient,
+  googleClientSchema,
+  removeCustomGoogleClient,
+  saveCustomGoogleClient,
+} from "./google-client";
 import { chooseAvatar, removeAvatar } from "./avatars";
 import {
   getActiveAccount,
@@ -56,6 +69,7 @@ import { dropImap, verifyImap } from "./imap/connection";
 import { verifySmtp } from "./imap/smtp";
 import { verifyPop3 } from "./pop3/client";
 import { removeLocalStore } from "./pop3/store";
+import { SHORTCUT_PLACES, setShortcut, shortcutStatus } from "./shortcuts";
 
 type Input<K extends keyof MailMethods> = Parameters<MailMethods[K]>[0];
 type Handler<K extends keyof MailMethods> = {
@@ -95,6 +109,16 @@ async function googleSession() {
   return session;
 }
 
+async function appFeatures() {
+  const { client, source } = await getGoogleClient();
+  return {
+    googleSignIn: client !== null,
+    googleClient: source,
+    googleClientHint: client ? clientHint(client) : null,
+    shortcuts: shortcutStatus(),
+  };
+}
+
 export function registerMailHandlers(options: {
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean;
   onSignedIn: () => void;
@@ -103,6 +127,42 @@ export function registerMailHandlers(options: {
   openComposeWindow: (href: string, accountId: string) => boolean;
 }) {
   const handlers: { [K in keyof MailMethods]: Handler<K> } = {
+    getAppFeatures: {
+      input: noInput,
+      run: appFeatures,
+    },
+    saveGoogleClient: {
+      input: googleClientSchema,
+      run: async (client) => {
+        await saveCustomGoogleClient(client);
+        // A session made with another client cannot be refreshed with this one.
+        dropSession();
+        return appFeatures();
+      },
+    },
+    setShortcut: {
+      input: z.object({ place: z.enum(SHORTCUT_PLACES), enabled: z.boolean() }),
+      run: async ({ place, enabled }) => {
+        try {
+          setShortcut(place, enabled);
+        } catch (error) {
+          throw new InvalidRequestError((error as Error).message);
+        }
+        return appFeatures();
+      },
+    },
+    removeGoogleClient: {
+      input: noInput,
+      run: async () => {
+        if ((await getGoogleClient()).source === "custom") {
+          // Its sign-in would be useless without it.
+          await signOut({ revoke: true });
+          if ((await getActiveId()) === GMAIL_ACCOUNT_ID) await setActiveId(null);
+          await removeCustomGoogleClient();
+        }
+        return appFeatures();
+      },
+    },
     getAccount: {
       input: noInput,
       run: getActiveAccount,

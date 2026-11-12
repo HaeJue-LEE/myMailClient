@@ -86,6 +86,52 @@ export function useLogin() {
 
 const accountsKey = ["accounts"];
 
+const appFeaturesKey = ["appFeatures"];
+
+/** What the app can do as set up now (e.g. whether Google sign-in has a client). */
+export function useAppFeatures() {
+  return useQuery({
+    queryKey: appFeaturesKey,
+    queryFn: () => unwrap(bridge().getAppFeatures()),
+    staleTime: Infinity,
+  });
+}
+
+/** Keeps the Google OAuth client the user entered, so Google sign-in can start. */
+export function useSaveGoogleClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { clientId: string; clientSecret: string }) =>
+      unwrap(bridge().saveGoogleClient(input)),
+    onSuccess: (features) => queryClient.setQueryData(appFeaturesKey, features),
+  });
+}
+
+/** Creates or removes the desktop or Start menu shortcut (launcher copies only). */
+export function useSetShortcut() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { place: "desktop" | "startMenu"; enabled: boolean }) =>
+      unwrap(bridge().setShortcut(input)),
+    onSuccess: (features) => queryClient.setQueryData(appFeaturesKey, features),
+  });
+}
+
+/** Forgets the entered client; its Google account is signed out with it. */
+export function useRemoveGoogleClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(bridge().removeGoogleClient()),
+    onSuccess: (features) => {
+      queryClient.setQueryData(appFeaturesKey, features);
+      const active = queryClient.getQueryData<Account | null>(accountKey);
+      // The Google account in use is gone: start over with another one.
+      if (active?.kind === "gmail") reloadMail();
+      else void queryClient.invalidateQueries({ queryKey: accountsKey });
+    },
+  });
+}
+
 /** Every account added to the app: the Google account and IMAP accounts. */
 export function useAccounts() {
   return useQuery({

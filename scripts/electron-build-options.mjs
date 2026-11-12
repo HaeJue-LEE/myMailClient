@@ -1,19 +1,28 @@
 // esbuild options shared by the one-off build and the dev watcher.
 
-/** Returns the OAuth client from `env`, or exits with a hint when it is missing. */
-export function requireOAuthClient(env) {
+/**
+ * The Google OAuth client from `env`, or null when it is not set. Without it
+ * the app is built without Google sign-in (Gmail API and Google contacts);
+ * IMAP and POP3 accounts, Gmail over IMAP included, work as before.
+ */
+export function oauthClientFrom(env) {
   const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = env;
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-    console.error(
-      "GOOGLE_CLIENT_ID와 GOOGLE_CLIENT_SECRET을 .env.local에 설정해 주세요. (.env.example 참고)",
-    );
-    process.exit(1);
-  }
-  return { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET };
+  return GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET
+    ? { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET }
+    : null;
 }
 
-/** Main and preload bundles; the OAuth client is inlined into main. */
-export function electronBuildOptions({ GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET }) {
+/** The line printed when a build leaves Google sign-in out. */
+export const NO_OAUTH_CLIENT_NOTICE =
+  "Google 클라이언트(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)가 .env.local에 없어 " +
+  "Google 로그인 없이 빌드합니다. IMAP·POP3 계정(Gmail IMAP 포함)은 그대로 쓸 수 있습니다.";
+
+/**
+ * Main and preload bundles. The OAuth client, when given, is inlined into
+ * main; null leaves both values empty, which turns Google sign-in off.
+ */
+export function electronBuildOptions(client) {
+  const { GOOGLE_CLIENT_ID = "", GOOGLE_CLIENT_SECRET = "" } = client ?? {};
   const common = {
     bundle: true,
     platform: "node",

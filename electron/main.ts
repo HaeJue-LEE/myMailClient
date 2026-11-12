@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 import { popupComposeHref, popupThreadHref } from "@/features/mail/routes";
 import { mailPageUrl, resolveAppFile } from "./app-protocol";
 import { registerMailHandlers } from "./ipc";
+import { offerShortcutsOnFirstInstall } from "./shortcuts";
 import { initialBounds, rememberBounds, type WindowKind } from "./window-state";
 
 const APP_SCHEME = "app";
@@ -111,6 +112,8 @@ function createAppWindow(kind: WindowKind, fallback: { width: number; height: nu
 
 function createWindow(url = startUrl) {
   const window = createAppWindow("main", { width: 1280, height: 820 });
+  // First start after the launcher set the app up: offer a desktop shortcut.
+  window.webContents.once("did-finish-load", () => void offerShortcutsOnFirstInstall(window));
   window.on("closed", () => {
     mainWindow = null;
   });

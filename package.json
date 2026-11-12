@@ -8,9 +8,11 @@
     "dev:app": "node scripts/dev-electron.mjs",
     "build:web": "next build",
     "build:electron": "node --env-file-if-exists=.env.local scripts/build-electron.mjs",
+    "build:electron:public": "node scripts/build-electron.mjs --public",
     "build": "npm run build:web && npm run build:electron",
     "start": "npm run build && electron .",
     "dist": "npm run build && electron-builder --win portable",
+    "dist:public": "node scripts/dist-public.mjs",
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit"
@@ -65,6 +67,10 @@
     },
     "portable": {
       "artifactName": "MailClient-${version}-portable.exe"
-    }
+    },
+    "electronLanguages": [
+      "ko",
+      "en-US"
+    ]
   }
 }

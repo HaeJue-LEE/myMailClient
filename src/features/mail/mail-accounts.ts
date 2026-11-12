@@ -135,7 +135,29 @@ export type AccountPreset = {
   notes: string[];
 };
 
+/**
+ * The choice in the account form that adds Gmail through Google sign-in
+ * (Gmail API) instead of a mail server; it sets up the Google client first
+ * when the app has none. Not an IMAP/POP3 preset, so not in ACCOUNT_PRESETS.
+ */
+export const GOOGLE_SIGN_IN_CHOICE = { id: "gmail-api", label: "Gmail (Google 로그인, Gmail API)" } as const;
+
 export const ACCOUNT_PRESETS: AccountPreset[] = [
+  {
+    id: "gmail-imap",
+    label: "Gmail (IMAP, 앱 비밀번호)",
+    protocol: "imap",
+    incoming: { host: "imap.gmail.com", port: 993, security: "ssl" },
+    outgoing: { host: "smtp.gmail.com", port: 465, security: "ssl" },
+    // Gmail files what goes through its SMTP server under Sent by itself.
+    saveSentCopy: false,
+    notes: [
+      "Google 계정 비밀번호로는 로그인되지 않습니다. 앱 비밀번호(16자리)를 만들어 비밀번호 칸에 넣어 주세요. (Google 계정 → 보안 → 2단계 인증을 켠 뒤 → 앱 비밀번호, myaccount.google.com/apppasswords)",
+      "사용자 이름은 Gmail 주소 전체(예: id@gmail.com)를 넣습니다.",
+      "회사·학교 Google Workspace 계정은 관리자가 IMAP이나 앱 비밀번호를 막아 두었을 수 있습니다.",
+      "Gmail 라벨은 폴더로 보입니다. Google 주소록 연동과 '보관'은 Google 로그인으로 추가한 계정에서만 쓸 수 있습니다.",
+    ],
+  },
   {
     id: "naver",
     label: "네이버 메일",

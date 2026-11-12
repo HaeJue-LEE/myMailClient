@@ -7,6 +7,8 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { z } from "zod";
+import { InvalidRequestError } from "./errors";
+import { type GoogleClient, getGoogleClient } from "./google-client";
 
 /**
  * gmail.modify covers read, label changes, and send, but not permanent delete.
@@ -28,16 +30,25 @@ export type Session = { email: string; gmail: gmail_v1.Gmail; auth: OAuth2Client
 export class LoginCancelledError extends Error {}
 
 let current: Session | null = null;
+/** The client `current` was made with; a session is tied to its client. */
+let currentClientId: string | null = null;
 let activeLogin: AbortController | null = null;
 
-function oauthClient(redirectUri?: string) {
-  // Inlined at build time from .env.local. For desktop OAuth clients Google
-  // does not treat the secret as confidential; PKCE protects the exchange.
+function oauthClient(client: GoogleClient, redirectUri?: string) {
+  // Built in from .env.local or entered by the user. For desktop OAuth
+  // clients Google does not treat the secret as confidential; PKCE protects
+  // the exchange.
   return new OAuth2Client({
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    clientId: client.clientId,
+    clientSecret: client.clientSecret,
     redirectUri,
   });
+}
+
+/** Forgets the open session, e.g. after the Google client changed. */
+export function dropSession() {
+  current = null;
+  currentClientId = null;
 }
 
 function storePath() {
@@ -63,8 +74,8 @@ async function writeStored(stored: Stored) {
   });
 }
 
-function createSession(stored: Stored): Session {
-  const oauth = oauthClient();
+function createSession(stored: Stored, client: GoogleClient): Session {
+  const oauth = oauthClient(client);
   oauth.setCredentials({ refresh_token: stored.refreshToken });
   oauth.on("tokens", (tokens) => {
     if (tokens.refresh_token && tokens.refresh_token !== stored.refreshToken) {
@@ -79,18 +90,23 @@ function createSession(stored: Stored): Session {
 }
 
 export async function getSession() {
-  if (current) return current;
+  // A sign-in cannot be refreshed without the client it was made with.
+  const { client } = await getGoogleClient();
+  if (!client) return null;
+  if (current && currentClientId === client.clientId) return current;
   const stored = await readStored();
-  if (stored) current = createSession(stored);
+  current = stored ? createSession(stored, client) : null;
+  currentClientId = current ? client.clientId : null;
   return current;
 }
 
 export async function signOut({ revoke }: { revoke: boolean }) {
   const stored = revoke ? await readStored() : null;
-  current = null;
+  dropSession();
   await rm(storePath(), { force: true });
-  if (stored) {
-    await oauthClient()
+  const { client } = await getGoogleClient();
+  if (stored && client) {
+    await oauthClient(client)
       .revokeToken(stored.refreshToken)
       .catch(() => undefined);
   }
@@ -138,6 +154,8 @@ function waitForCode(server: Server, state: string, signal: AbortSignal) {
  * Starting a new login cancels any login still waiting.
  */
 export async function signIn(): Promise<{ email: string }> {
+  const { client } = await getGoogleClient();
+  if (!client) throw new InvalidRequestError("No Google client is set up");
   activeLogin?.abort();
   const controller = new AbortController();
   activeLogin = controller;
@@ -146,7 +164,7 @@ export async function signIn(): Promise<{ email: string }> {
   try {
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const { port } = server.address() as AddressInfo;
-    const oauth = oauthClient(`http://127.0.0.1:${port}/callback`);
+    const oauth = oauthClient(client, `http://127.0.0.1:${port}/callback`);
     const { codeVerifier, codeChallenge } =
       await oauth.generateCodeVerifierAsync();
     const state = randomUUID();
@@ -176,7 +194,8 @@ export async function signIn(): Promise<{ email: string }> {
 
     const stored = { email: data.emailAddress, refreshToken: tokens.refresh_token };
     await writeStored(stored);
-    current = createSession(stored);
+    current = createSession(stored, client);
+    currentClientId = client.clientId;
     return { email: stored.email };
   } finally {
     if (activeLogin === controller) activeLogin = null;

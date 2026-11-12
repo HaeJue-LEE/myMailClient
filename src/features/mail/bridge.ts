@@ -107,7 +107,35 @@ export type DraftContent = {
 /** Gmail's attachment limit is 25 MB; base64 and the body need headroom. */
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
+/** What the app can do as set up now. */
+export type AppFeatures = {
+  /**
+   * Google sign-in (Gmail API, Google contacts): needs a Google OAuth client,
+   * built in or entered by the user. Gmail also works as an IMAP account.
+   */
+  googleSignIn: boolean;
+  /** Where the client comes from: built in (.env.local), entered in the app, or none yet. */
+  googleClient: "built-in" | "custom" | "none";
+  /** The start of the client ID in use, to recognise it; never the secret. */
+  googleClientHint: string | null;
+  /**
+   * Desktop and Start menu shortcuts: `available` only when the app was
+   * started through its launcher exe, which the shortcuts point at.
+   */
+  shortcuts: { available: boolean; desktop: boolean; startMenu: boolean };
+};
+
 export type MailMethods = {
+  getAppFeatures: () => AppFeatures;
+  /**
+   * Keeps a Google OAuth client the user created (desktop app type) for
+   * Google sign-in, encrypted on this computer. Refused when one is built in.
+   */
+  saveGoogleClient: (input: { clientId: string; clientSecret: string }) => AppFeatures;
+  /** Forgets the entered client; a Google account signed in with it is signed out. */
+  removeGoogleClient: () => AppFeatures;
+  /** Creates or removes the desktop or Start menu shortcut to the launcher. */
+  setShortcut: (input: { place: "desktop" | "startMenu"; enabled: boolean }) => AppFeatures;
   /** The account in use; null when no account has been added. */
   getAccount: () => Account | null;
   /** Every account added: the Google account and IMAP accounts. */
@@ -221,6 +249,10 @@ export type MailApi = {
 };
 
 export const MAIL_METHODS = [
+  "getAppFeatures",
+  "saveGoogleClient",
+  "removeGoogleClient",
+  "setShortcut",
   "getAccount",
   "listAccounts",
   "setActiveAccount",
