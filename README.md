@@ -47,14 +47,14 @@ Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로
 
 | 명령어 | 설명 |
 | --- | --- |
-| `npm run dist` | 실행 파일 생성 → `release/MailClient-<버전>-portable.exe` |
+| `npm run dist` | 이 PC용 실행 파일 생성 → `release/MailClient-<버전>-local.exe`. `.env.local`의 Google 키가 들어가므로 남에게 주지 마세요. 실행 방식은 아래 `dist:public`과 같고, Rust(`cargo`)가 필요합니다 |
 | `npm run dist:public` | 남에게 줄 실행 파일 생성 → `release/MailClient-<버전>.exe`. Google 키를 넣지 않고, 처음 실행하면 exe 옆 `Mail Client` 폴더에 앱을 풀어 둔 뒤 실행합니다(이후 실행은 바로 시작). Rust(`cargo`)가 필요합니다 |
 | `npm start` | 빌드 후 앱 실행 |
 | `npm run dev` | 개발 모드 (Next 개발 서버 + 앱). `src/` 수정은 즉시 반영, `electron/`·`.env.local` 수정은 앱 자동 재시작. 앱 창을 닫으면 종료 |
 | `npm test` | 단위 테스트 |
 | `npm run typecheck` / `npm run lint` | 타입 검사 / ESLint |
 
-`release/` 폴더의 `.exe` 파일 하나만 있으면 설치 없이 실행됩니다.
+`release/` 폴더의 `.exe` 파일 하나만 있으면 설치 없이 실행됩니다(처음 실행할 때 exe 옆에 `Mail Client` 폴더를 만듭니다).
 코드 서명을 하지 않았으므로 처음 실행할 때 Windows SmartScreen 경고가 나오면 **추가 정보 → 실행**을 누릅니다.
 
 ## 구조

@@ -1,7 +1,7 @@
 {
   "name": "mail-client",
   "productName": "Mail Client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "dev": "concurrently -k -n next,app \"next dev\" \"npm:dev:app\"",
@@ -11,7 +11,7 @@
     "build:electron:public": "node scripts/build-electron.mjs --public",
     "build": "npm run build:web && npm run build:electron",
     "start": "npm run build && electron .",
-    "dist": "npm run build && electron-builder --win portable",
+    "dist": "node scripts/dist-public.mjs --local",
     "dist:public": "node scripts/dist-public.mjs",
     "lint": "eslint",
     "test": "vitest run",
@@ -62,11 +62,8 @@
       "package.json"
     ],
     "win": {
-      "target": "portable",
+      "target": "dir",
       "icon": "build/icon.ico"
-    },
-    "portable": {
-      "artifactName": "MailClient-${version}-portable.exe"
     },
     "electronLanguages": [
       "ko",

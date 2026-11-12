@@ -1,9 +1,14 @@
-// Builds the executable to hand to others: `release/MailClient-<version>.exe`.
-// It is the small launcher in launcher/ with the app (release/win-unpacked,
-// zipped) appended: the first run unpacks the app into a "Mail Client" folder
-// beside the exe, later runs start it directly.
+// Builds the app as one executable: the small launcher in launcher/ with the
+// app (release/win-unpacked, zipped) appended. The first run unpacks the app
+// into a "Mail Client" folder beside the exe, later runs start it directly.
 //
-// Always built without the Google OAuth client, so no client secret ships.
+// - Default (`npm run dist:public`): `release/MailClient-<version>.exe`, to
+//   hand to others. Always built without the Google OAuth client, so no
+//   client secret ships.
+// - `--local` (`npm run dist`): `release/MailClient-<version>-local.exe`, for
+//   this PC: built with the Google client from .env.local when there is one.
+//   Not for handing out: the client secret is inside.
+//
 // dist-electron/ is shared with `npm run dev` and `npm start`, so afterwards
 // (also on failure) it is rebuilt the usual way, with the client from
 // .env.local when there is one.
@@ -25,7 +30,8 @@ const PAYLOAD = path.join(RELEASE, "payload.zip");
 const LAUNCHER = path.resolve("launcher/target/release/mailclient-launcher.exe");
 const MAGIC = Buffer.from("MCPKG001");
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
-const OUTPUT = path.join(RELEASE, `MailClient-${version}.exe`);
+const LOCAL = process.argv.includes("--local");
+const OUTPUT = path.join(RELEASE, `MailClient-${version}${LOCAL ? "-local" : ""}.exe`);
 
 function run(command, args, options = {}) {
   // `shell` resolves npm/npx on Windows as npm scripts do.
@@ -79,8 +85,18 @@ function assemble() {
 let failed = false;
 try {
   run("npm", ["run", "build:web"]);
-  console.log("배포용 빌드: Google 클라이언트를 넣지 않습니다.");
-  await bundle(null);
+  if (LOCAL) {
+    const client = localClient();
+    console.log(
+      client
+        ? "이 PC용 빌드: .env.local의 Google 클라이언트를 넣습니다. 남에게 주지 마세요."
+        : "이 PC용 빌드: .env.local이 없어 Google 로그인 없이 빌드합니다.",
+    );
+    await bundle(client);
+  } else {
+    console.log("배포용 빌드: Google 클라이언트를 넣지 않습니다.");
+    await bundle(null);
+  }
   run("npx", ["electron-builder", "--win", "--dir"]);
   buildLauncher();
   zipApp();
