@@ -1,0 +1,67 @@
+# The Mac app, built on GitHub's macOS runner: Actions → "Mac app" →
+# "Run workflow". The dmgs come out as the run's artifact "mac-app".
+# Built without the Google OAuth client (no secrets are used here).
+name: Mac app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Shows what still assumes Windows, without stopping the build.
+      - name: Unit tests on macOS
+        run: npm test
+        continue-on-error: true
+
+      - name: Build the app and the dmgs
+        run: node scripts/dist-mac.mjs
+
+      # Starts the Apple silicon app (this runner's own) and checks it is still
+      # running after a while, with a picture of the screen.
+      - name: Start the app once
+        run: |
+          app="release/mac-arm64/Mail Client.app/Contents/MacOS/Mail Client"
+          "$app" > release/smoke.log 2>&1 &
+          pid=$!
+          sleep 30
+          screencapture -x release/smoke.png || true
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "The app is running."
+            kill "$pid"
+          else
+            echo "The app quit or crashed:"
+            cat release/smoke.log
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-app
+          path: release/MailClient-*-mac-*.dmg
+          retention-days: 14
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test
+          path: |
+            release/smoke.log
+            release/smoke.png
+          if-no-files-found: ignore
+          retention-days: 14

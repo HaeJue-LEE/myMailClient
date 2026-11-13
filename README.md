@@ -68,6 +68,7 @@ Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로
 | --- | --- |
 | `npm run dist` | 이 PC용 실행 파일 생성 → `release/MailClient-<버전>-local.exe`. `.env.local`의 Google 키가 들어가므로 남에게 주지 마세요. 실행 방식은 아래 `dist:public`과 같고, Rust(`cargo`)가 필요합니다 |
 | `npm run dist:public` | 남에게 줄 실행 파일 생성 → `release/MailClient-<버전>.exe`. Google 키를 넣지 않고, 처음 실행하면 exe 옆 `Mail Client` 폴더에 앱을 풀어 둔 뒤 실행합니다(이후 실행은 바로 시작). Rust(`cargo`)가 필요합니다 |
+| `npm run dist:mac` | 맥용 앱 생성 → `release/MailClient-<버전>-mac-arm64.dmg`(M1 이후), `-mac-x64.dmg`(Intel). macOS에서만 실행됩니다. 아래 **맥(macOS)** 참고 |
 | `npm start` | 빌드 후 앱 실행 |
 | `npm run dev` | 개발 모드 (Next 개발 서버 + 앱). `src/` 수정은 즉시 반영, `electron/`·`.env.local` 수정은 앱 자동 재시작. 앱 창을 닫으면 종료 |
 | `npm test` | 단위 테스트 |
@@ -83,6 +84,30 @@ Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로
 
 `release/` 폴더의 `.exe` 파일 하나만 있으면 설치 없이 실행됩니다(처음 실행할 때 exe 옆에 `Mail Client` 폴더를 만듭니다).
 코드 서명을 하지 않았으므로 처음 실행할 때 Windows SmartScreen 경고가 나오면 **추가 정보 → 실행**을 누릅니다.
+
+## 맥(macOS)
+
+맥용 앱은 GitHub Actions의 macOS 빌드 서버에서 만듭니다. Mac이 없어도 됩니다.
+
+1. GitHub 저장소의 **Actions → Mac app → Run workflow**를 누릅니다.
+2. 끝나면(약 15분) 실행 결과 아래 **Artifacts**의 `mac-app`을 내려받아 압축을 풉니다.
+   M1 이후 Mac(Apple 메뉴 → 이 Mac에 관하여에서 칩이 'Apple M…')은 `-mac-arm64.dmg`, Intel Mac은 `-mac-x64.dmg`입니다.
+
+Mac에서 설치하기:
+
+1. dmg를 열고 **Mail Client**를 **Applications**(응용 프로그램) 폴더로 끌어 놓습니다.
+2. 처음 열면 Apple 개발자 서명이 없어 "확인할 수 없음" 경고가 나옵니다. **완료**를 누른 뒤
+   **시스템 설정 → 개인정보 보호 및 보안**의 아래쪽에서 Mail Client의 **그래도 열기**를 누릅니다.
+   "손상되었기 때문에 열 수 없습니다"가 나오면 터미널에서 다음을 실행한 뒤 다시 엽니다.
+   ```
+   xattr -dr com.apple.quarantine "/Applications/Mail Client.app"
+   ```
+3. 계정을 처음 저장할 때 키체인 접근을 물으면 **항상 허용**을 누릅니다(비밀번호를 키체인으로 암호화합니다).
+   새 버전으로 바꾼 뒤에는 한 번 더 물을 수 있습니다.
+
+- Google 로그인(Gmail API)은 빠져 있습니다. Gmail은 앱 비밀번호로 IMAP 계정으로 추가합니다.
+- 자동 업데이트·바로 가기·MyApps의 프로그램 실행은 Windows 전용입니다. 새 버전은 같은 방법으로 받아 앱을 바꿉니다.
+- 설정과 계정은 `~/Library/Application Support/Mail Client`에 저장됩니다. Windows에서 쓰던 계정 파일은 옮겨도 열리지 않습니다.
 
 ## 구조
 

@@ -129,7 +129,7 @@ export type UpdateStatus = {
     | "downloading"
     | "ready"
     | "error";
-  reason?: "dev" | "local";
+  reason?: "dev" | "local" | "mac";
   /** The release found (available, downloading, ready, or failed to download). */
   version?: string;
   received?: number;

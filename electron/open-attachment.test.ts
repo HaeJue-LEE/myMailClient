@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,6 +9,7 @@ import {
   markFromInternet,
   numberedName,
   openWarning,
+  quarantineValue,
   windowsFilename,
   writeNewFile,
 } from "./open-attachment";
@@ -71,6 +73,18 @@ describe("markFromInternet", () => {
     // The mark is a stream of the file, not a file beside it.
     expect(existsSync(path.join(dir, "marked.txt_Zone.Identifier"))).toBe(false);
   });
+
+  it.skipIf(process.platform !== "darwin")("quarantines the file on macOS", async () => {
+    const file = path.join(dir, "marked.command");
+    await writeFile(file, "echo hi");
+    await markFromInternet(file);
+    const mark = execFileSync("/usr/bin/xattr", ["-p", "com.apple.quarantine", file], { encoding: "utf8" });
+    expect(mark.trim()).toMatch(/^0081;[0-9a-f]+;Mail Client;$/);
+  });
+
+  it("writes the quarantine value browsers write", () => {
+    expect(quarantineValue(Date.UTC(2026, 0, 1))).toBe("0081;6955b900;Mail Client;");
+  });
 });
 
 describe("openWarning", () => {
@@ -83,6 +97,8 @@ describe("openWarning", () => {
 
     expect(isRunnable("setup.EXE")).toBe(true);
     expect(isRunnable("report.xlsm")).toBe(true);
+    expect(isRunnable("install.command")).toBe(true);
+    expect(isRunnable("setup.pkg")).toBe(true);
     expect(openWarning("invoice.pdf.exe").detail).toContain("바로 실행");
     // Saved, and run, as `.exe`.
     expect(openWarning("invoice.exe.").detail).toContain("바로 실행");

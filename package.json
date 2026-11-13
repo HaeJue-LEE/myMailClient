@@ -14,6 +14,7 @@
     "start": "npm run build && electron .",
     "dist": "node scripts/dist-public.mjs --local",
     "dist:public": "node scripts/dist-public.mjs",
+    "dist:mac": "node scripts/dist-mac.mjs",
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit"

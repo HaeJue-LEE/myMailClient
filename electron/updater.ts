@@ -53,7 +53,9 @@ const set = (next: Omit<UpdateStatus, "currentVersion">) => {
 const offer = (exe: ReleaseExe) =>
   set({ state: "available", version: exe.version, total: exe.size, notes: exe.notes });
 
-async function unsupportedReason(): Promise<"dev" | "local" | null> {
+async function unsupportedReason(): Promise<"dev" | "local" | "mac" | null> {
+  // The Mac app is a plain .app bundle, without the launcher that updates.
+  if (app.isPackaged && process.platform === "darwin") return "mac";
   if (!app.isPackaged || !launcherPath()) return "dev";
   if ((await getGoogleClient()).source === "built-in") return "local";
   return null;
