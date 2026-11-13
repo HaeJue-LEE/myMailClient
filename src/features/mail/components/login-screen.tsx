@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { APPS_HREF } from "@/features/apps/routes";
 import { MailApiError, useAccount, useAppFeatures, useLogin } from "@/features/mail/api";
 import { MailAccountForm } from "@/features/mail/components/mail-account-form";
 import { Unavailable } from "@/features/mail/components/mail-shell";
@@ -74,6 +76,10 @@ export function LoginScreen() {
           {googleSignIn ? "네이버 등 다른 메일 계정 추가" : "메일 계정 추가"}
         </button>
       </div>
+      {/* MyApps needs no mail account. */}
+      <Link href={APPS_HREF} className="text-sm underline opacity-70 hover:opacity-100">
+        메일 없이 MyApps(NAS·웹앱) 사용하기
+      </Link>
     </main>
   );
 }

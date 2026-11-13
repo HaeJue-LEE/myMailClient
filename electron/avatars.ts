@@ -46,12 +46,12 @@ export function toAvatar(image: NativeImage): Buffer {
 }
 
 /**
- * Asks for an image file and stores it as the account's picture. Returns
- * false when the dialog is cancelled; refuses files that are not images.
+ * Asks for an image file (PNG or JPG) and decodes it. Null when the dialog
+ * is cancelled; refuses files that are too large or not images.
  */
-export async function chooseAvatar(window: BrowserWindow | null, accountId: string) {
+export async function chooseImage(window: BrowserWindow | null, title: string): Promise<NativeImage | null> {
   const options = {
-    title: "계정 사진 선택",
+    title,
     properties: ["openFile" as const],
     filters: [{ name: "이미지 (PNG, JPG)", extensions: EXTENSIONS }],
   };
@@ -59,12 +59,22 @@ export async function chooseAvatar(window: BrowserWindow | null, accountId: stri
     ? await dialog.showOpenDialog(window, options)
     : await dialog.showOpenDialog(options);
   const file = choice.filePaths[0];
-  if (choice.canceled || !file) return false;
+  if (choice.canceled || !file) return null;
 
   const bytes = await readFile(file);
   if (bytes.length > MAX_SOURCE_BYTES) throw new InvalidRequestError("Image too large");
   const image = nativeImage.createFromBuffer(bytes);
   if (image.isEmpty()) throw new InvalidRequestError("Not a supported image");
+  return image;
+}
+
+/**
+ * Asks for an image file and stores it as the account's picture. Returns
+ * false when the dialog is cancelled; refuses files that are not images.
+ */
+export async function chooseAvatar(window: BrowserWindow | null, accountId: string) {
+  const image = await chooseImage(window, "계정 사진 선택");
+  if (!image) return false;
 
   await mkdir(avatarDir(), { recursive: true });
   const target = avatarPath(accountId);

@@ -10,6 +10,9 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { popupComposeHref, popupThreadHref } from "@/features/mail/routes";
 import { mailPageUrl, resolveAppFile } from "./app-protocol";
+import { handleCertificateError } from "./apps/contents";
+import { registerAppsHandlers } from "./apps/ipc";
+import { AppViews } from "./apps/views";
 import { registerMailHandlers } from "./ipc";
 import { startScheduler } from "./scheduled";
 import { startUpdater } from "./updater";
@@ -32,6 +35,10 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let mainWindow: BrowserWindow | null = null;
+/** MyApps shown inside the main window. */
+let mainViews: AppViews | null = null;
+
+const APP_ICON = path.join(__dirname, "../build/icon.ico");
 
 function isAppUrl(raw: string) {
   try {
@@ -86,7 +93,7 @@ function createAppWindow(kind: WindowKind, fallback: { width: number; height: nu
     minWidth: 480,
     minHeight: 360,
     title: "Mail Client",
-    icon: path.join(__dirname, "../build/icon.ico"),
+    icon: APP_ICON,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -116,10 +123,13 @@ function createWindow(url = startUrl) {
   const window = createAppWindow("main", { width: 1280, height: 820 });
   // First start after the launcher set the app up: offer a desktop shortcut.
   window.webContents.once("did-finish-load", () => void offerShortcutsOnFirstInstall(window));
+  const views = new AppViews(window, APP_ICON);
   window.on("closed", () => {
     mainWindow = null;
+    mainViews = null;
   });
   mainWindow = window;
+  mainViews = views;
   void loadAppUrl(window, url);
 }
 
@@ -215,6 +225,15 @@ if (!app.requestSingleInstanceLock()) {
       openThreadWindow,
       openComposeWindow,
     });
+    registerAppsHandlers({
+      isTrustedSender,
+      viewsFor: (event) =>
+        mainWindow && event.sender === mainWindow.webContents ? mainViews : null,
+      allViews: () => (mainViews ? [mainViews] : []),
+      icon: APP_ICON,
+    });
+    // Only pages of MyApps are affected, and only for certificates trusted for that app.
+    app.on("certificate-error", handleCertificateError);
     createWindow();
     startUpdater();
     startScheduler();

@@ -47,7 +47,19 @@ const ICON_PATHS = {
   highlight: "M9 11l-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4",
   eraser: "M7 21h12M4.5 15.5l9.9-9.9a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19H8z",
   chevronDown: "M6 9l6 6 6-6",
+  chevronUp: "M6 15l6-6 6 6",
   clock: "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M12 7v5l3 2",
+  // MyApps and the left rail.
+  mail: "M3 6h18v12H3zM3 6l9 7 9-7",
+  apps: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+  next: "M9 18l6-6-6-6",
+  home: "M3 11l9-8 9 8M5 9v11h14V9M10 20v-6h4v6",
+  globe: "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
+  lockOpen: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 7.5-2",
+  settings: "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4",
+  /** A panel with its left column, and an arrow folding it in or out. */
+  sidebarClose: "M3 4h18v16H3zM9 4v16M16 9l-3 3 3 3",
+  sidebarOpen: "M3 4h18v16H3zM9 4v16M13 9l3 3-3 3",
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

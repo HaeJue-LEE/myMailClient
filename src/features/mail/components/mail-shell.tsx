@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, type ReactNode } from "react";
+import { AppRail, AppRailFallback } from "@/features/apps/components/app-rail";
+import { useSidebarCollapsed } from "@/features/apps/components/sidebar-collapse";
 import { MailApiError, useAccount } from "@/features/mail/api";
 import { UpdatePrompt } from "@/features/mail/components/app-update";
 import { Sidebar } from "@/features/mail/components/sidebar";
@@ -19,6 +21,7 @@ export function MailShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { data: account, isPending, error } = useAccount();
   const signedOut = !isPending && !error && account === null;
+  const sidebarCollapsed = useSidebarCollapsed();
 
   useEffect(() => {
     if (signedOut) router.replace("/login");
@@ -31,9 +34,14 @@ export function MailShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-dvh">
-      <Suspense fallback={<aside className="w-60 shrink-0 border-r border-foreground/10" />}>
-        <Sidebar account={account} />
+      <Suspense fallback={<AppRailFallback />}>
+        <AppRail />
       </Suspense>
+      {!sidebarCollapsed && (
+        <Suspense fallback={<aside className="w-60 shrink-0 border-r border-foreground/10" />}>
+          <Sidebar account={account} />
+        </Suspense>
+      )}
       {/* Scroll container for the views; their toolbars stick to its top.
           relative: absolutely placed content (e.g. screen-reader-only text)
           stays inside it instead of lengthening the page (a second scrollbar). */}

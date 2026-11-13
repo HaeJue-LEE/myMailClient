@@ -8,7 +8,7 @@ import { z } from "zod";
  * keeps its place and whether it was maximized; pop-ups keep their size only,
  * so several of them do not open exactly on top of one another.
  */
-export type WindowKind = "main" | "thread" | "compose";
+export type WindowKind = "main" | "thread" | "compose" | "site";
 
 const MIN_WIDTH = 480;
 const MIN_HEIGHT = 360;
@@ -24,6 +24,8 @@ const fileSchema = z.object({
   main: entrySchema.optional(),
   thread: entrySchema.optional(),
   compose: entrySchema.optional(),
+  /** MyApps opened in a window of their own. */
+  site: entrySchema.optional(),
 });
 type StateFile = z.infer<typeof fileSchema>;
 type Entry = z.infer<typeof entrySchema>;
