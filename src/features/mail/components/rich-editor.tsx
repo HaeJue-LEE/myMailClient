@@ -39,6 +39,19 @@ export function normalizeLink(input: string) {
   return `https://${value}`;
 }
 
+/**
+ * A link to paste when the copied text is one web address, as copied from a
+ * browser's address bar; null for anything else. Edge then also puts a link
+ * named after the page's title in the HTML ("friendly links"), which would
+ * otherwise be pasted in place of the address.
+ */
+export function pastedLinkHtml(text: string) {
+  const url = text.trim();
+  if (!/^https?:\/\/\S+$/i.test(url)) return null;
+  const escaped = escapeHtml(url);
+  return `<a href="${escaped}">${escaped}</a>`;
+}
+
 /** Inline styles for blocks, so mail programs show them as the editor does. */
 const BLOCK_STYLES = {
   blockquote: "margin:0 0 0 0.8ex;border-left:2px solid #ccc;padding-left:1ex;color:#555",
@@ -171,7 +184,9 @@ export function RichEditor({
   };
 
   const insertSanitized = (html: string, text: string) => {
-    if (html) document.execCommand("insertHTML", false, sanitizeForEditor(html));
+    const link = pastedLinkHtml(text);
+    if (link) document.execCommand("insertHTML", false, link);
+    else if (html) document.execCommand("insertHTML", false, sanitizeForEditor(html));
     else if (text) document.execCommand("insertText", false, text);
     onChange?.();
   };

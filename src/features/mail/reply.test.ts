@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeLink } from "@/features/mail/components/rich-editor";
+import { normalizeLink, pastedLinkHtml } from "@/features/mail/components/rich-editor";
 import {
   parseAddressList,
   startReply,
@@ -171,5 +171,21 @@ describe("textToHtml and normalizeLink", () => {
     ["  ", null],
   ])("%s -> %s", (input, expected) => {
     expect(normalizeLink(input)).toBe(expected);
+  });
+});
+
+describe("pastedLinkHtml", () => {
+  it("pastes an address copied from the address bar as itself, not the page title", () => {
+    expect(pastedLinkHtml(" https://example.com/a?b=1&c=2\r\n")).toBe(
+      '<a href="https://example.com/a?b=1&amp;c=2">https://example.com/a?b=1&amp;c=2</a>',
+    );
+  });
+
+  it("leaves other text to the HTML or plain-text paste", () => {
+    expect(pastedLinkHtml("see https://example.com")).toBeNull();
+    expect(pastedLinkHtml("example.com")).toBeNull();
+    expect(pastedLinkHtml("javascript:alert(1)")).toBeNull();
+    expect(pastedLinkHtml('https://example.com/"><img src=x onerror=alert(1)>')).toBeNull();
+    expect(pastedLinkHtml("")).toBeNull();
   });
 });
