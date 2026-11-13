@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { InvalidRequestError } from "./errors";
+import { largestIconPng } from "./icon-resources";
 
 /**
  * A picture per account, shown instead of its first letter where accounts
@@ -15,7 +16,9 @@ const AVATAR_SIZE = 96;
 /** Larger files are refused before decoding: a photo for an icon need not be huge. */
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 /** What Electron's image decoder reads on every platform. */
-const EXTENSIONS = ["png", "jpg", "jpeg"];
+const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg"];
+/** Files whose icon is taken instead: programs and icon files. */
+const ICON_EXTENSIONS = ["exe", "ico"];
 
 const avatarDir = () => path.join(app.getPath("userData"), "avatars");
 /** Account ids are generated or "gmail"; encoded anyway so no id becomes a path. */
@@ -46,14 +49,36 @@ export function toAvatar(image: NativeImage): Buffer {
 }
 
 /**
- * Asks for an image file (PNG or JPG) and decodes it. Null when the dialog
- * is cancelled; refuses files that are too large or not images.
+ * The icon of a file as Explorer shows it, at its largest: the 256px picture
+ * of a program or icon file when it has one, else Windows' own for
+ * `shownFile` (48px, for any file; a shortcut whose icon is read from its
+ * program shows its own when that program has no large one). Refuses a file
+ * with no icon.
+ */
+export async function fileIconImage(file: string, shownFile = file): Promise<NativeImage> {
+  const png = await largestIconPng(file);
+  const large = png ? nativeImage.createFromBuffer(png) : null;
+  if (large && !large.isEmpty()) return large;
+  const icon = await app.getFileIcon(shownFile, { size: "large" });
+  if (icon.isEmpty()) throw new InvalidRequestError("Not a supported image");
+  return icon;
+}
+
+/**
+ * Asks for a picture and decodes it: an image file (PNG or JPG), or a
+ * program or icon file (EXE, ICO) whose icon is taken. Null when the dialog
+ * is cancelled; refuses files that are too large or not pictures. A
+ * shortcut picked in the dialog comes back as the program it points to.
  */
 export async function chooseImage(window: BrowserWindow | null, title: string): Promise<NativeImage | null> {
   const options = {
     title,
     properties: ["openFile" as const],
-    filters: [{ name: "이미지 (PNG, JPG)", extensions: EXTENSIONS }],
+    filters: [
+      { name: "이미지·프로그램 아이콘 (PNG, JPG, EXE, ICO)", extensions: [...IMAGE_EXTENSIONS, ...ICON_EXTENSIONS] },
+      { name: "이미지 (PNG, JPG)", extensions: IMAGE_EXTENSIONS },
+      { name: "프로그램·아이콘 파일 (EXE, ICO)", extensions: ICON_EXTENSIONS },
+    ],
   };
   const choice = window
     ? await dialog.showOpenDialog(window, options)
@@ -61,6 +86,7 @@ export async function chooseImage(window: BrowserWindow | null, title: string): 
   const file = choice.filePaths[0];
   if (choice.canceled || !file) return null;
 
+  if (ICON_EXTENSIONS.includes(path.extname(file).slice(1).toLowerCase())) return fileIconImage(file);
   const bytes = await readFile(file);
   if (bytes.length > MAX_SOURCE_BYTES) throw new InvalidRequestError("Image too large");
   const image = nativeImage.createFromBuffer(bytes);

@@ -244,14 +244,14 @@ export function AppForm({
             {chooseIcon.isError ? (
               <span role="alert" className="block text-xs text-red-600">
                 {chooseIcon.error instanceof AppsApiError && chooseIcon.error.code === "invalid_request"
-                  ? "이 파일은 아이콘으로 쓸 수 없습니다. 20MB 이하의 PNG나 JPG 이미지를 골라 주세요."
+                  ? "이 파일은 아이콘으로 쓸 수 없습니다. 20MB 이하의 PNG·JPG 이미지나 프로그램(EXE)·아이콘(ICO) 파일을 골라 주세요."
                   : "이미지를 불러오지 못했습니다. 다시 시도해 주세요."}
               </span>
             ) : (
               <span className="block text-xs opacity-60">
                 {kind === "program"
-                  ? "프로그램을 고르면 그 프로그램의 아이콘을 씁니다. PNG나 JPG 이미지로 바꿀 수도 있습니다."
-                  : "PNG나 JPG 이미지. 모양은 그대로 두고 128px 안에 맞게 줄여 저장합니다."}
+                  ? "프로그램을 고르면 그 프로그램의 아이콘을 씁니다. PNG·JPG 이미지나 다른 프로그램(EXE)·아이콘(ICO) 파일의 아이콘으로 바꿀 수도 있습니다."
+                  : "PNG·JPG 이미지, 또는 프로그램(EXE)·아이콘(ICO) 파일을 고르면 그 아이콘을 씁니다. 모양은 그대로 두고 128px 안에 맞게 줄여 저장합니다."}
               </span>
             )}
           </div>

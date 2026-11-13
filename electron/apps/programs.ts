@@ -1,4 +1,4 @@
-import { app, type BrowserWindow, dialog, shell } from "electron";
+import { type BrowserWindow, dialog, shell } from "electron";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -10,6 +10,7 @@ import {
   type ProgramApp,
 } from "@/features/apps/apps";
 import type { PickedProgram } from "@/features/apps/bridge";
+import { fileIconImage } from "../avatars";
 import { InvalidRequestError } from "../errors";
 import { toAppIcon } from "./icons";
 
@@ -32,6 +33,25 @@ async function showDialog(window: BrowserWindow | null) {
 }
 
 /**
+ * The file whose icon a picked program shows. A shortcut shows its program's
+ * icon, or the icon file it names: read from there, it comes at its largest.
+ * A shortcut with an icon other than its file's first (an index into a DLL)
+ * keeps its own, as Windows draws it.
+ */
+function iconSource(file: string) {
+  if (path.extname(file).toLowerCase() !== ".lnk") return file;
+  try {
+    const link = shell.readShortcutLink(file);
+    const expand = (value: string) =>
+      value.replace(/%([^%]+)%/g, (whole, name: string) => process.env[name] ?? whole);
+    if (link.icon) return link.iconIndex === 0 ? expand(link.icon) : file;
+    return link.target ? expand(link.target) : file;
+  } catch {
+    return file;
+  }
+}
+
+/**
  * Asks for a program and returns it with a suggested name (its file name)
  * and its own icon; null when the dialog is cancelled.
  */
@@ -44,8 +64,7 @@ export async function chooseProgram(window: BrowserWindow | null): Promise<Picke
 
   let icon: string | null = null;
   try {
-    const image = await app.getFileIcon(file, { size: "large" });
-    if (!image.isEmpty()) icon = toAppIcon(image);
+    icon = toAppIcon(await fileIconImage(iconSource(file), file));
   } catch {
     // No icon: the letter tile.
   }

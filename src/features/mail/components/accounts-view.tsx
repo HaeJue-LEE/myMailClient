@@ -376,7 +376,7 @@ function AccountRow({
       {(chooseAvatar.isError || removeAvatar.isError) && (
         <p role="alert" className="mt-1.5 text-xs text-red-600">
           {chooseAvatar.isError
-            ? "사진을 넣지 못했습니다. PNG나 JPG 이미지 파일(20MB 이하)인지 확인해 주세요."
+            ? "사진을 넣지 못했습니다. PNG·JPG 이미지(20MB 이하)나 프로그램(EXE)·아이콘(ICO) 파일인지 확인해 주세요."
             : "사진을 지우지 못했습니다. 다시 시도해 주세요."}
         </p>
       )}
