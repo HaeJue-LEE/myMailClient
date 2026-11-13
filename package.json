@@ -2,6 +2,7 @@
   "name": "mail-client",
   "productName": "Mail Client",
   "version": "0.1.6",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "concurrently -k -n next,app \"next dev\" \"npm:dev:app\"",
