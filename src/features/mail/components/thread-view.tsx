@@ -6,6 +6,7 @@ import { type ComponentProps, useEffect, useRef, useState } from "react";
 import {
   openComposeWindow,
   useMarkThreadRead,
+  useOpenAttachment,
   useOpenThreadWindow,
   useSaveAttachment,
   useThread,
@@ -233,6 +234,7 @@ function ReceivedAttachments({
   attachments: MailAttachment[];
 }) {
   const save = useSaveAttachment();
+  const open = useOpenAttachment();
   const [status, setStatus] = useState<string | null>(null);
 
   return (
@@ -250,6 +252,38 @@ function ReceivedAttachments({
             <span className="shrink-0 text-xs opacity-60">
               {formatBytes(attachment.size)}
             </span>
+            <button
+              type="button"
+              disabled={open.isPending}
+              onClick={() => {
+                setStatus(null);
+                open.mutate(
+                  {
+                    messageId,
+                    attachmentId: attachment.attachmentId,
+                    filename: attachment.filename,
+                  },
+                  {
+                    onSuccess: (result) => {
+                      if (result.problem) {
+                        setStatus(
+                          `다운로드 폴더에 ${result.filename}(으)로 저장했지만 열지 못했습니다: ${result.problem}`,
+                        );
+                      } else if (result.opened) {
+                        setStatus(`다운로드 폴더에 저장하고 열었습니다: ${result.filename}`);
+                      }
+                    },
+                    onError: () =>
+                      setStatus(`${attachment.filename}을(를) 열지 못했습니다.`),
+                  },
+                );
+              }}
+              title={`${attachment.filename} 보기 (다운로드 폴더에 저장한 뒤 엽니다)`}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-foreground/10 disabled:opacity-50"
+            >
+              <Icon name="eye" />
+              보기
+            </button>
             <button
               type="button"
               disabled={save.isPending}

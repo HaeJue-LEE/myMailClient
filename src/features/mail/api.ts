@@ -542,6 +542,17 @@ export function useSaveAttachment() {
   });
 }
 
+/** Opens a received attachment after a warning, saving it in Downloads first. */
+export function useOpenAttachment() {
+  return useMutation({
+    mutationFn: (input: {
+      messageId: string;
+      attachmentId: string;
+      filename: string;
+    }) => unwrap(bridge().openAttachment(input)),
+  });
+}
+
 /** Addresses the account may send from: its own and verified Gmail aliases. */
 export function useSendAs() {
   return useQuery({

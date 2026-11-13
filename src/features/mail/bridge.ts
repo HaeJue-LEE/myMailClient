@@ -290,6 +290,17 @@ export type MailMethods = {
     filename: string;
   }) => { saved: boolean; filename?: string };
   /**
+   * Opens a received attachment: after a warning (the main process's own
+   * dialog), it is saved in the Downloads folder (numbered when the name is
+   * taken) and opened with its program. `opened` is false when the user
+   * cancels, or with `problem` when Windows could not open the saved file.
+   */
+  openAttachment: (input: {
+    messageId: string;
+    attachmentId: string;
+    filename: string;
+  }) => { opened: boolean; filename?: string; problem?: string };
+  /**
    * Google Contacts plus Google's "Other contacts", merged by address. Shared
    * by every account: read from the Google account whichever one is in use,
    * and empty when there is no Google account.
@@ -363,6 +374,7 @@ export const MAIL_METHODS = [
   "deleteDraft",
   "openDraft",
   "saveAttachment",
+  "openAttachment",
   "listContacts",
   "createContact",
   "updateContact",

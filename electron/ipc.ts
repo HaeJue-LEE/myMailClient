@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   type IpcMainInvokeEvent,
+  shell,
 } from "electron";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -66,6 +67,7 @@ import {
 import { safeFilename } from "./gmail/mime";
 import { getHiddenContacts, setContactsHidden } from "./hidden-contacts";
 import { dropImap, verifyImap } from "./imap/connection";
+import { markFromInternet, openWarning, writeNewFile } from "./open-attachment";
 import { verifySmtp } from "./imap/smtp";
 import { verifyPop3 } from "./pop3/client";
 import { removeLocalStore } from "./pop3/store";
@@ -482,6 +484,28 @@ export function registerMailHandlers(options: {
           await mail.getAttachmentData(messageId, attachmentId),
         );
         return { saved: true, filename: path.basename(choice.filePath) };
+      },
+    },
+    openAttachment: {
+      input: z.object({
+        messageId: id,
+        attachmentId: z.string().min(1).max(4096),
+        filename: z.string().max(255),
+      }),
+      run: async ({ messageId, attachmentId, filename }, event) => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        const warning = openWarning(filename);
+        const { response } = window
+          ? await dialog.showMessageBox(window, warning)
+          : await dialog.showMessageBox(warning);
+        if (response !== 0) return { opened: false };
+
+        const data = await (await backend()).getAttachmentData(messageId, attachmentId);
+        const file = await writeNewFile(app.getPath("downloads"), filename, data);
+        await markFromInternet(file);
+        // Resolves to an error message rather than rejecting.
+        const problem = await shell.openPath(file);
+        return { opened: !problem, filename: path.basename(file), ...(problem ? { problem } : {}) };
       },
     },
     listContacts: {
