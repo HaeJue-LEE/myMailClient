@@ -1,8 +1,13 @@
 import DOMPurify from "dompurify";
 
-/** Blocks scripts, frames, and form posts even if a payload survives sanitizing. */
+/**
+ * Blocks scripts, frames, and form posts even if a payload survives sanitizing.
+ * Images and fonts load over https only; `upgrade-insecure-requests` fetches
+ * plain `http://` ones over https instead of dropping them (many senders
+ * still write http links to servers that also serve https).
+ */
 const CONTENT_SECURITY_POLICY =
-  "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; font-src https: data:";
+  "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; font-src https: data:; upgrade-insecure-requests";
 
 /**
  * Untrusted HTML (a quoted email, a signature, pasted content) made safe to

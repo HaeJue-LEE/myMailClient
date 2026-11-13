@@ -70,6 +70,8 @@ describe("buildEmailDocument", () => {
 
     expect(first?.getAttribute("http-equiv")).toBe("Content-Security-Policy");
     expect(first?.getAttribute("content")).toContain("default-src 'none'");
+    // http images are fetched over https rather than blocked.
+    expect(first?.getAttribute("content")).toContain("upgrade-insecure-requests");
     expect(doc.querySelector("base")?.getAttribute("target")).toBe("_blank");
     expect(doc.body.textContent).toBe("hello");
   });
