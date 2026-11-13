@@ -4,6 +4,16 @@ Gmail(Gmail API)과 네이버 등 IMAP/SMTP 메일 계정을 함께 쓰는 Windo
 계정은 여러 개 추가할 수 있고, 왼쪽 아래 계정 선택이나 **메일 계정** 화면에서 사용할 계정을 고릅니다.
 화면은 Next.js, 실행은 Electron으로 구성되며, 서버를 따로 실행하지 않습니다.
 
+## 화면
+
+| 메일 목록 | 메일 쓰기와 보내기 예약 |
+| --- | --- |
+| ![메일 목록](docs/screenshots/mail.png) | ![메일 쓰기와 보내기 예약](docs/screenshots/compose.png) |
+| **MyApps: 웹앱을 앱 안에서 열기** | **메일 계정 관리** |
+| ![MyApps에서 웹앱을 연 화면](docs/screenshots/myapps.png) | ![메일 계정 관리](docs/screenshots/accounts.png) |
+
+개인정보가 보이는 부분은 흐리게 처리했습니다.
+
 ## 준비
 
 Google 로그인(Gmail API·Google 주소록)은 **선택 사항**입니다. 아래 설정 없이 빌드하면 Google 로그인만 빠지고,
