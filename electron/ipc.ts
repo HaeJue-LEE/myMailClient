@@ -87,6 +87,7 @@ import {
   checkForUpdate,
   downloadUpdate,
   getUpdateStatus,
+  installDownloadedDmg,
   openUpdatePage,
   restartToUpdate,
 } from "./updater";
@@ -230,6 +231,10 @@ export function registerMailHandlers(options: {
     openUpdatePage: {
       input: noInput,
       run: async () => openUpdatePage(),
+    },
+    installDownloadedDmg: {
+      input: noInput,
+      run: installDownloadedDmg,
     },
     restartToUpdate: {
       input: noInput,

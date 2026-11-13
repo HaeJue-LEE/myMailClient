@@ -60,43 +60,68 @@ function assetNamed(release: GithubRelease, name: string): Record<string, unknow
   );
 }
 
-/** The Mac app is updated by hand: the release page it is downloaded from. */
-export type ReleasePage = {
+/**
+ * The Mac app's update: the dmg for this Mac, downloaded by the app (so
+ * macOS does not mark it as from the internet) and installed by hand, and
+ * the release page, as a fallback.
+ */
+export type ReleaseDmg = {
   version: string;
   /** The release's page on GitHub, opened in the browser. */
   page: string;
-  /** The dmg for this Mac, to pick on the page, and its size. */
+  /** The dmg's name, its address, size, and lower-case hex SHA-256. */
   file: string;
+  url: string;
   size: number;
+  sha256: string;
   notes: string;
 };
 
-/** Where the app's releases are; the page opened must be one of them. */
+/** Where the app's releases are; the page opened and the dmg downloaded must be among them. */
 export const RELEASES_PAGE = "https://github.com/HaeJue-LEE/myMailClient/releases/";
 
+const MAX_DMG_BYTES = 1024 * 1024 * 1024;
+
+/** GitHub's `sha256:<hex>` asset digest as lower-case hex; null for anything else. */
+function sha256Of(digest: unknown) {
+  if (typeof digest !== "string") return null;
+  return /^sha256:([0-9a-f]{64})$/i.exec(digest)?.[1]?.toLowerCase() ?? null;
+}
+
 /**
- * The release page to offer the Mac app, or null when there is none to
- * offer: not a later version, a draft or pre-release, no
+ * The dmg to offer the Mac app, or null when there is none to offer: not a
+ * later version, a draft or pre-release, no
  * `MailClient-<version>-mac-<arch>.dmg` for this Mac yet (it is attached a
- * few minutes after the release is published), or a page elsewhere.
+ * few minutes after the release is published), no SHA-256 to check it
+ * against, or a page or download elsewhere than this app's releases.
  */
-export function releasePage(
+export function releaseDmg(
   release: GithubRelease,
   currentVersion: string,
   arch: string,
-): ReleasePage | null {
+): ReleaseDmg | null {
   const version = laterVersion(release, currentVersion);
   if (!version) return null;
   const file = `MailClient-${version}-mac-${arch}.dmg`;
   const dmg = assetNamed(release, file);
-  if (!dmg || typeof dmg.size !== "number" || !Number.isSafeInteger(dmg.size)) return null;
+  if (!dmg) return null;
+  const { size, browser_download_url: url } = dmg;
+  const sha256 = sha256Of(dmg.digest);
+  if (!sha256 || typeof size !== "number" || !Number.isSafeInteger(size) || size <= 0 || size > MAX_DMG_BYTES) {
+    return null;
+  }
   const page = release.html_url;
   if (typeof page !== "string" || !page.startsWith(RELEASES_PAGE) || !URL.canParse(page)) return null;
+  if (typeof url !== "string" || !url.startsWith(`${RELEASES_PAGE}download/`) || !URL.canParse(url)) {
+    return null;
+  }
   return {
     version,
     page,
     file,
-    size: dmg.size,
+    url,
+    size,
+    sha256,
     notes: typeof release.body === "string" ? release.body : "",
   };
 }
@@ -123,7 +148,7 @@ export function releaseExe(
   if (!parsedUrl || !(parsedUrl.protocol === "https:" || (allowHttp && parsedUrl.protocol === "http:"))) {
     return null;
   }
-  const sha256 = /^sha256:([0-9a-f]{64})$/i.exec(digest)?.[1]?.toLowerCase();
+  const sha256 = sha256Of(digest);
   if (!sha256 || !Number.isSafeInteger(size) || size <= 20 || size > MAX_EXE_BYTES) return null;
   return {
     version,

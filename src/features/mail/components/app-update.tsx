@@ -5,6 +5,7 @@ import {
   useCancelUpdateDownload,
   useCheckForUpdate,
   useDownloadUpdate,
+  useInstallDownloadedDmg,
   useOpenUpdatePage,
   useRestartToUpdate,
   useUpdateStatus,
@@ -55,37 +56,86 @@ function Notes({ notes }: { notes?: string }) {
   );
 }
 
+/** The release page in the browser: the Mac app's fallback when downloading here fails. */
+function PageButton() {
+  const open = useOpenUpdatePage();
+  return (
+    <>
+      <button type="button" disabled={open.isPending} onClick={() => open.mutate()} className={BUTTON}>
+        다운로드 페이지 열기
+      </button>
+      {(open.isError || open.data === false) && (
+        <span role="alert" className="self-center text-xs text-red-600">
+          페이지를 열지 못했습니다.
+        </span>
+      )}
+    </>
+  );
+}
+
 /**
- * The Mac app's offer: the release page opens in the browser, where the dmg
- * for this Mac is downloaded and the app in Applications replaced by hand.
+ * The Mac app's offer: the app downloads the dmg itself (so macOS does not
+ * stop the new app as one from the internet), then opens it and quits.
  */
 function ByHandOffer({ status, later }: { status: UpdateStatus; later: React.ReactNode }) {
-  const open = useOpenUpdatePage();
+  const download = useDownloadUpdate();
   return (
     <div className="space-y-2">
       <p className="text-sm">
-        새 버전 <b>{status.version}</b>이(가) 있습니다. 다운로드 페이지에서{" "}
-        <b className="break-all">{status.file}</b>
-        {status.total ? ` (${megabytes(status.total)})` : ""}을(를) 받아 응용 프로그램 폴더의 Mail
-        Client를 바꿔 주세요.
+        새 버전 <b>{status.version}</b>이(가) 있습니다
+        {status.total ? ` (${megabytes(status.total)})` : ""}. 받을까요?
       </p>
       <p className="text-xs opacity-70">
-        바꾼 뒤 처음 열 때는 처음 설치할 때처럼 터미널에서 허용 명령을 한 번 실행해야 할 수 있습니다.
+        다운로드 폴더에 받아 확인한 뒤 설치 방법을 안내합니다. 이 앱으로 받으면 처음 열 때 터미널
+        명령이 필요 없습니다.
       </p>
       <Notes notes={status.notes} />
-      {(open.isError || open.data === false) && (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={download.isPending}
+          onClick={() => download.mutate()}
+          className={PRIMARY}
+        >
+          새 버전 받기
+        </button>
+        {later}
+      </div>
+    </div>
+  );
+}
+
+/** The Mac app: the dmg is in Downloads; opening it quits the app, to replace it. */
+function ByHandReady({ status, later }: { status: UpdateStatus; later: React.ReactNode }) {
+  const install = useInstallDownloadedDmg();
+  return (
+    <div className="space-y-2">
+      <p className="text-sm">
+        새 버전 <b>{status.version}</b>을(를) 다운로드 폴더에 받았습니다
+        {status.file ? ` (${status.file})` : ""}.
+      </p>
+      <ol className="list-decimal space-y-0.5 pl-5 text-xs opacity-80">
+        <li>
+          <b>설치</b>를 누르면 dmg 창이 열리고 Mail Client가 종료됩니다(쓰던 메일은 임시보관함에 저장).
+        </li>
+        <li>
+          열린 창에서 Mail Client를 Applications 폴더로 끌어 놓고 <b>대치</b>를 누릅니다.
+        </li>
+        <li>응용 프로그램 폴더에서 Mail Client를 다시 엽니다.</li>
+      </ol>
+      {(install.isError || install.data === false) && (
         <p role="alert" className="text-xs text-red-600">
-          페이지를 열지 못했습니다. 업데이트를 다시 확인해 주세요.
+          dmg를 열지 못했습니다. 다운로드 폴더에서 직접 열어 주세요.
         </p>
       )}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={open.isPending}
-          onClick={() => open.mutate()}
+          disabled={install.isPending || install.data === true}
+          onClick={() => install.mutate()}
           className={PRIMARY}
         >
-          다운로드 페이지 열기
+          설치
         </button>
         {later}
       </div>
@@ -148,6 +198,7 @@ function UpdateSteps({ status, onLater }: { status: UpdateStatus; onLater?: () =
         </div>
       );
     case "ready":
+      if (status.byHand) return <ByHandReady status={status} later={later} />;
       return (
         <div className="space-y-2">
           <p className="text-sm">
@@ -185,14 +236,17 @@ function UpdateSteps({ status, onLater }: { status: UpdateStatus; onLater?: () =
           </p>
           <div className="flex flex-wrap gap-2">
             {status.error === "download" ? (
-              <button
-                type="button"
-                disabled={download.isPending}
-                onClick={() => download.mutate()}
-                className={BUTTON}
-              >
-                다시 받기
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={download.isPending}
+                  onClick={() => download.mutate()}
+                  className={BUTTON}
+                >
+                  다시 받기
+                </button>
+                {status.byHand && <PageButton />}
+              </>
             ) : (
               <button
                 type="button"
@@ -252,7 +306,8 @@ export function AppUpdate() {
       )}
       {status.byHand && (status.state === "idle" || status.state === "latest") && (
         <p className="text-xs opacity-70">
-          맥용 앱은 스스로 바뀌지 않습니다. 새 버전이 있으면 다운로드 페이지를 열어 드립니다.
+          맥용 앱은 스스로 바뀌지 않습니다. 새 버전이 있으면 받아 드리고, 응용 프로그램 폴더의 앱을
+          바꾸는 방법을 안내합니다.
         </p>
       )}
       <UpdateSteps status={status} />
@@ -312,8 +367,8 @@ export function UpdatePrompt({ showVersion = false }: {
 export function UpdateNotice() {
   const { data: status } = useUpdateStatus();
   const download = useDownloadUpdate();
-  const openPage = useOpenUpdatePage();
   const restart = useRestartToUpdate();
+  const install = useInstallDownloadedDmg();
   if (!status) return null;
 
   return (
@@ -321,26 +376,14 @@ export function UpdateNotice() {
       {status.state === "available" && (
         <div className="flex items-center gap-2">
           <p className="flex-1">새 버전 {status.version} 있음</p>
-          {status.byHand ? (
-            <button
-              type="button"
-              disabled={openPage.isPending}
-              onClick={() => openPage.mutate()}
-              title="다운로드 페이지를 브라우저에서 엽니다."
-              className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
-            >
-              받기
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={download.isPending}
-              onClick={() => download.mutate()}
-              className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
-            >
-              업데이트
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={download.isPending}
+            onClick={() => download.mutate()}
+            className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
+          >
+            {status.byHand ? "받기" : "업데이트"}
+          </button>
         </div>
       )}
       {status.state === "downloading" && (
@@ -352,15 +395,27 @@ export function UpdateNotice() {
       {status.state === "ready" && (
         <div className="flex items-center gap-2">
           <p className="flex-1">새 버전 {status.version} 준비됨</p>
-          <button
-            type="button"
-            disabled={restart.isPending}
-            onClick={() => restart.mutate()}
-            title="앱을 다시 시작해 새 버전을 설치합니다. 쓰던 메일은 임시보관함에 저장됩니다."
-            className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
-          >
-            다시 시작
-          </button>
+          {status.byHand ? (
+            <button
+              type="button"
+              disabled={install.isPending || install.data === true}
+              onClick={() => install.mutate()}
+              title="dmg를 열고 앱을 종료합니다. 새 앱을 Applications 폴더로 끌어 놓아 바꿔 주세요."
+              className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
+            >
+              설치
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={restart.isPending}
+              onClick={() => restart.mutate()}
+              title="앱을 다시 시작해 새 버전을 설치합니다. 쓰던 메일은 임시보관함에 저장됩니다."
+              className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
+            >
+              다시 시작
+            </button>
+          )}
         </div>
       )}
       <p className="tabular-nums opacity-50">Mail Client {status.currentVersion}</p>

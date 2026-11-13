@@ -184,6 +184,11 @@ export function useOpenUpdatePage() {
   return useMutation({ mutationFn: () => unwrap(bridge().openUpdatePage()) });
 }
 
+/** The Mac app: opens the downloaded dmg and quits, to drag the new app over this one. */
+export function useInstallDownloadedDmg() {
+  return useMutation({ mutationFn: () => unwrap(bridge().installDownloadedDmg()) });
+}
+
 /** Quits and starts again as the downloaded version. */
 export function useRestartToUpdate() {
   return useMutation({ mutationFn: () => unwrap(bridge().restartToUpdate()) });

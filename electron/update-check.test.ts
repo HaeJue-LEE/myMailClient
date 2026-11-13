@@ -4,7 +4,7 @@ import {
   isNewer,
   parseVersion,
   releaseExe,
-  releasePage,
+  releaseDmg,
   TRAILER_BYTES,
 } from "./update-check";
 
@@ -96,43 +96,62 @@ describe("checkPackageTrailer", () => {
   });
 });
 
-describe("releasePage", () => {
+describe("releaseDmg", () => {
   const PAGE = "https://github.com/HaeJue-LEE/myMailClient/releases/tag/v0.1.7";
-  const macRelease = (overrides: Record<string, unknown> = {}, names = ["MailClient-0.1.7-mac-arm64.dmg"]) => ({
+  const DOWNLOADS = "https://github.com/HaeJue-LEE/myMailClient/releases/download/v0.1.7/";
+  const dmgAsset = (name: string, asset: Record<string, unknown> = {}) => ({
+    name,
+    browser_download_url: `${DOWNLOADS}${name}`,
+    size: 130_000_000,
+    digest: `sha256:${SHA}`,
+    ...asset,
+  });
+  const macRelease = (
+    overrides: Record<string, unknown> = {},
+    names = ["MailClient-0.1.7-mac-arm64.dmg"],
+    asset: Record<string, unknown> = {},
+  ) => ({
     tag_name: "v0.1.7",
     html_url: PAGE,
     draft: false,
     prerelease: false,
     body: "notes",
-    assets: [
-      { name: "MailClient-0.1.7.exe", size: 149_000_000 },
-      ...names.map((name) => ({ name, size: 130_000_000 })),
-    ],
+    assets: [{ name: "MailClient-0.1.7.exe", size: 149_000_000 }, ...names.map((name) => dmgAsset(name, asset))],
     ...overrides,
   });
 
-  it("offers the page of a later release with a dmg for this Mac", () => {
-    expect(releasePage(macRelease(), "0.1.6", "arm64")).toEqual({
+  it("offers the dmg for this Mac from a later release", () => {
+    expect(releaseDmg(macRelease(), "0.1.6", "arm64")).toEqual({
       version: "0.1.7",
       page: PAGE,
       file: "MailClient-0.1.7-mac-arm64.dmg",
+      url: `${DOWNLOADS}MailClient-0.1.7-mac-arm64.dmg`,
       size: 130_000_000,
+      sha256: SHA,
       notes: "notes",
     });
   });
 
+  it("downloads only from this app's releases, with a SHA-256 to check", () => {
+    const name = ["MailClient-0.1.7-mac-arm64.dmg"];
+    expect(releaseDmg(macRelease({}, name, { browser_download_url: "https://example.com/x.dmg" }), "0.1.6", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease({}, name, { browser_download_url: "http://github.com/HaeJue-LEE/myMailClient/releases/download/v0.1.7/x.dmg" }), "0.1.6", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease({}, name, { digest: undefined }), "0.1.6", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease({}, name, { size: 0 }), "0.1.6", "arm64")).toBeNull();
+  });
+
   it("waits until the dmg for this Mac is attached", () => {
-    expect(releasePage(macRelease({}, []), "0.1.6", "arm64")).toBeNull();
-    expect(releasePage(macRelease(), "0.1.6", "x64")).toBeNull();
+    expect(releaseDmg(macRelease({}, []), "0.1.6", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease(), "0.1.6", "x64")).toBeNull();
   });
 
   it("offers nothing older, unpublished, or elsewhere", () => {
-    expect(releasePage(macRelease(), "0.1.7", "arm64")).toBeNull();
-    expect(releasePage(macRelease({ draft: true }), "0.1.6", "arm64")).toBeNull();
-    expect(releasePage(macRelease({ prerelease: true }), "0.1.6", "arm64")).toBeNull();
-    expect(releasePage(macRelease({ html_url: "https://example.com/releases/v0.1.7" }), "0.1.6", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease(), "0.1.7", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease({ draft: true }), "0.1.6", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease({ prerelease: true }), "0.1.6", "arm64")).toBeNull();
+    expect(releaseDmg(macRelease({ html_url: "https://example.com/releases/v0.1.7" }), "0.1.6", "arm64")).toBeNull();
     expect(
-      releasePage(macRelease({ html_url: "https://github.com/someone-else/myMailClient/releases/tag/v0.1.7" }), "0.1.6", "arm64"),
+      releaseDmg(macRelease({ html_url: "https://github.com/someone-else/myMailClient/releases/tag/v0.1.7" }), "0.1.6", "arm64"),
     ).toBeNull();
   });
 });

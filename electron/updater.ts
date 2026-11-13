@@ -1,21 +1,22 @@
 import { app, shell } from "electron";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createWriteStream, renameSync, rmSync } from "node:fs";
-import { open, rm } from "node:fs/promises";
+import { createWriteStream, existsSync, renameSync, rmSync } from "node:fs";
+import { open, rename, rm } from "node:fs/promises";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import path from "node:path";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import type { UpdateStatus } from "@/features/mail/bridge";
 import { getGoogleClient } from "./google-client";
+import { numberedName } from "./open-attachment";
 import { launcherPath } from "./shortcuts";
 import {
   checkPackageTrailer,
+  type ReleaseDmg,
+  releaseDmg,
   type ReleaseExe,
   releaseExe,
-  type ReleasePage,
-  releasePage,
   TRAILER_BYTES,
 } from "./update-check";
 
@@ -33,9 +34,13 @@ import {
  * exe would take that client, and the sign-in made with it, away.
  *
  * The Mac app is a plain .app bundle without the launcher, and not signed by
- * Apple, so it cannot replace itself. It only says when a later release has
- * a dmg for this Mac, and opens that release's page (`byHand`); the user
- * downloads it and replaces the app in Applications.
+ * Apple, so it cannot replace itself (`byHand`). When a later release has a
+ * dmg for this Mac, the app downloads it into Downloads and checks it (size,
+ * GitHub's SHA-256); then it opens the dmg and quits, and the user drags the
+ * new app over the old one. Downloaded by the app rather than a browser, the
+ * dmg carries no quarantine mark, so macOS opens the new app without the
+ * warning an app without Apple's signature gets. The release page stays as
+ * a fallback.
  */
 
 /** Updates are installed by hand from the release page (the Mac app). */
@@ -60,8 +65,9 @@ let status: UpdateStatus = {
 };
 /** The later release found, offered until the user downloads it. */
 let found: ReleaseExe | null = null;
-/** The Mac app's later release, whose page is opened to download it. */
-let foundPage: ReleasePage | null = null;
+/** The Mac app's later release, and its dmg once downloaded. */
+let foundDmg: ReleaseDmg | null = null;
+let stagedDmg: string | null = null;
 let checking = false;
 let downloading: AbortController | null = null;
 let staged: { version: string; file: string; launcher: string } | null = null;
@@ -89,14 +95,18 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
   return status;
 }
 
-/** Downloads `exe` beside the launcher and checks it; resolves with its path. */
-async function download(exe: ReleaseExe, launcher: string, signal: AbortSignal): Promise<string> {
-  const file = `${launcher}.update`;
+type Download = { version: string; url: string; size: number; sha256: string; notes: string };
+
+/**
+ * Downloads `item` into `file`, showing progress, and checks its size and
+ * SHA-256. The file is removed when anything fails.
+ */
+async function fetchChecked(item: Download, file: string, signal: AbortSignal, mode: number) {
   await rm(file, { force: true });
   const progress = (received: number) =>
-    set({ state: "downloading", version: exe.version, received, total: exe.size, notes: exe.notes });
+    set({ state: "downloading", version: item.version, received, total: item.size, notes: item.notes });
   progress(0);
-  const response = await fetch(exe.url, {
+  const response = await fetch(item.url, {
     headers: { "User-Agent": USER_AGENT },
     signal: AbortSignal.any([signal, AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)]),
   });
@@ -106,7 +116,7 @@ async function download(exe: ReleaseExe, launcher: string, signal: AbortSignal):
   const count = new Transform({
     transform(chunk: Buffer, _encoding, done) {
       received += chunk.length;
-      if (received > exe.size) {
+      if (received > item.size) {
         done(new Error("download larger than announced"));
         return;
       }
@@ -119,11 +129,22 @@ async function download(exe: ReleaseExe, launcher: string, signal: AbortSignal):
     await pipeline(
       Readable.fromWeb(response.body as WebReadableStream<Uint8Array>),
       count,
-      createWriteStream(file, { mode: 0o755 }),
+      createWriteStream(file, { mode }),
       { signal },
     );
-    if (received !== exe.size) throw new Error("download size mismatch");
-    if (hash.digest("hex") !== exe.sha256) throw new Error("download hash mismatch");
+    if (received !== item.size) throw new Error("download size mismatch");
+    if (hash.digest("hex") !== item.sha256) throw new Error("download hash mismatch");
+  } catch (error) {
+    await rm(file, { force: true });
+    throw error;
+  }
+}
+
+/** Downloads `exe` beside the launcher and checks it; resolves with its path. */
+async function download(exe: ReleaseExe, launcher: string, signal: AbortSignal): Promise<string> {
+  const file = `${launcher}.update`;
+  await fetchChecked(exe, file, signal, 0o755);
+  try {
     // The same trailer the launcher reads: the file really is a package of that version.
     const handle = await open(file, "r");
     try {
@@ -141,6 +162,24 @@ async function download(exe: ReleaseExe, launcher: string, signal: AbortSignal):
     await rm(file, { force: true });
     throw error;
   }
+}
+
+/**
+ * Downloads the Mac app's dmg into Downloads and checks it; resolves with its
+ * path. Kept under the release's name, numbered when one is already there.
+ */
+async function downloadDmg(dmg: ReleaseDmg, signal: AbortSignal): Promise<string> {
+  const folder = app.getPath("downloads");
+  const partial = path.join(folder, `${dmg.file}.download`);
+  await fetchChecked(dmg, partial, signal, 0o644);
+  for (let number = 0; number < 100; number++) {
+    const target = path.join(folder, numberedName(dmg.file, number));
+    if (existsSync(target)) continue;
+    await rename(partial, target);
+    return target;
+  }
+  await rm(partial, { force: true });
+  throw new Error("No free file name");
 }
 
 /**
@@ -177,9 +216,9 @@ export async function checkForUpdate({ manual }: { manual: boolean }): Promise<U
       return status;
     }
     if (BY_HAND) {
-      foundPage = releasePage((release ?? {}) as Parameters<typeof releasePage>[0], app.getVersion(), process.arch);
-      if (foundPage) {
-        const { version, file, size, notes } = foundPage;
+      foundDmg = releaseDmg((release ?? {}) as Parameters<typeof releaseDmg>[0], app.getVersion(), process.arch);
+      if (foundDmg) {
+        const { version, file, size, notes } = foundDmg;
         set({ state: "available", version, file, total: size, notes });
       } else set({ state: "latest", checkedAt: Date.now() });
       return status;
@@ -198,8 +237,37 @@ export async function checkForUpdate({ manual }: { manual: boolean }): Promise<U
   }
 }
 
+/** The Mac app: downloads the dmg offered; the status follows its progress. */
+function downloadDmgUpdate(): UpdateStatus {
+  const dmg = foundDmg;
+  if (!dmg || downloading || stagedDmg) return status;
+  const controller = new AbortController();
+  downloading = controller;
+  const { version, file, size, notes } = dmg;
+  void downloadDmg(dmg, controller.signal)
+    .then((saved) => {
+      stagedDmg = saved;
+      set({ state: "ready", version, file: path.basename(saved), notes });
+    })
+    .catch((error: Error) => {
+      if (controller.signal.aborted) {
+        // Cancelled: offered again.
+        set({ state: "available", version, file, total: size, notes });
+        return;
+      }
+      console.warn("[update] download failed", error.message);
+      set({ state: "error", error: "download", version, file });
+    })
+    .finally(() => {
+      if (downloading === controller) downloading = null;
+    });
+  set({ state: "downloading", version, file, received: 0, total: size, notes });
+  return status;
+}
+
 /** Starts downloading the release offered; the status follows its progress. */
 export function downloadUpdate(): UpdateStatus {
+  if (BY_HAND) return downloadDmgUpdate();
   const launcher = launcherPath();
   const exe = found;
   if (!exe || !launcher || downloading || staged) return status;
@@ -231,8 +299,25 @@ export function downloadUpdate(): UpdateStatus {
  * Only that page: the address comes from the release, never from the screen.
  */
 export function openUpdatePage(): boolean {
-  if (!foundPage) return false;
-  void shell.openExternal(foundPage.page);
+  if (!foundDmg) return false;
+  void shell.openExternal(foundDmg.page);
+  return true;
+}
+
+/**
+ * The Mac app: opens the downloaded dmg and quits, so the new app can be
+ * dragged over this one. False when there is no dmg or it would not open.
+ * Open compose windows save their drafts as they close.
+ */
+export async function installDownloadedDmg(): Promise<boolean> {
+  if (!stagedDmg) return false;
+  const problem = await shell.openPath(stagedDmg);
+  if (problem) {
+    console.warn("[update] could not open the dmg", problem);
+    return false;
+  }
+  // A moment for Finder to take the dmg before this app goes.
+  setTimeout(() => app.quit(), 1000);
   return true;
 }
 
