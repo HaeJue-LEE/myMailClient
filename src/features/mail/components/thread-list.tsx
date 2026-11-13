@@ -2,11 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { MailApiError, useOpenThreadWindow, useThreads } from "@/features/mail/api";
+import {
+  MailApiError,
+  useAccount,
+  useOpenThreadWindow,
+  useThreadAction,
+  useThreads,
+} from "@/features/mail/api";
 import { mailServerErrorText } from "@/features/mail/server-errors";
 import { DateFilter } from "@/features/mail/components/date-filter";
 import { Icon } from "@/features/mail/components/icon";
-import { ThreadActionButtons } from "@/features/mail/components/thread-actions";
+import { canTrash, ThreadActionButtons } from "@/features/mail/components/thread-actions";
 import { UnreadFilter } from "@/features/mail/components/unread-filter";
 import {
   ToolButton,
@@ -235,6 +241,11 @@ function ThreadRows({
   onToggle: (id: string) => void;
 }) {
   const openWindow = useOpenThreadWindow();
+  const trash = useThreadAction();
+  const kind = useAccount().data?.kind;
+  const labelId = listLabel(list);
+  // In the trash, mail is restored rather than deleted again (from the toolbar).
+  const rowTrash = labelId !== "TRASH" && canTrash(kind, labelId);
   if (query.isPending) {
     return <p className="p-6 text-sm opacity-60">불러오는 중…</p>;
   }
@@ -286,6 +297,11 @@ function ThreadRows({
 
   return (
     <>
+      {trash.isError && (
+        <p role="alert" className="px-5 py-2 text-xs text-red-600">
+          메일을 삭제하지 못했습니다. 다시 시도해 주세요.
+        </p>
+      )}
       <ul className="divide-y divide-foreground/10">
         {threads.map((thread) => {
           const isChecked = checked.has(thread.id);
@@ -343,10 +359,22 @@ function ThreadRows({
                 )}
               </Link>
               {/* Shown on hover or keyboard focus, so the row stays uncluttered. */}
+              {rowTrash && (
+                <button
+                  type="button"
+                  // Leaves the list at once; brought back if the server refuses.
+                  onClick={() => trash.mutate({ action: "trash", threadIds: [thread.id], list })}
+                  title="삭제"
+                  aria-label={`${thread.subject} 삭제`}
+                  className="shrink-0 rounded p-1.5 opacity-0 hover:bg-red-500/10 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-70 group-hover:hover:opacity-100"
+                >
+                  <Icon name="trash" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() =>
-                  openWindow.mutate({ threadId: thread.id, labelId: listLabel(list) ?? undefined })
+                  openWindow.mutate({ threadId: thread.id, labelId: labelId ?? undefined })
                 }
                 title="새 창으로 열기"
                 aria-label={`${thread.subject} 새 창으로 열기`}

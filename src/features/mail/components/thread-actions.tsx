@@ -6,7 +6,16 @@ import {
   useThreadAction,
 } from "@/features/mail/api";
 import { ToolButton } from "@/features/mail/components/toolbar";
+import type { AccountKind } from "@/features/mail/mail-accounts";
 import { listLabel, type MailList } from "@/features/mail/routes";
+
+/**
+ * Whether threads of this list can be moved to the trash. POP3 mail is never
+ * deleted from the server here; only local copies (sent, drafts) can go.
+ */
+export function canTrash(kind: AccountKind | undefined, labelId: string | null) {
+  return kind !== "pop3" || labelId === "SENT" || labelId === "DRAFT";
+}
 
 /**
  * Delete / archive / read-state buttons for one or more threads, shared by the
@@ -31,8 +40,6 @@ export function ThreadActionButtons({
   const disabled = isPending || threadIds.length === 0;
   // Search results span labels, so they get the label-neutral actions only.
   const labelId = listLabel(list);
-  // POP3 mail is never deleted from the server here; only local copies can go.
-  const canTrash = kind !== "pop3" || labelId === "SENT" || labelId === "DRAFT";
   const run = (action: ThreadAction) =>
     mutate(
       { action, threadIds, list },
@@ -48,7 +55,7 @@ export function ThreadActionButtons({
           disabled={disabled}
           onClick={() => run("restore")}
         />
-      ) : !canTrash ? null : (
+      ) : !canTrash(kind, labelId) ? null : (
         <ToolButton
           icon="trash"
           label="삭제"
