@@ -13,6 +13,7 @@ import type { WebApp } from "@/features/apps/apps";
 import { safeFilename } from "../gmail/mime";
 import {
   ALLOWED_PERMISSIONS,
+  browserUserAgent,
   formatFingerprint,
   mayNavigate,
   partitionFor,
@@ -35,6 +36,8 @@ export function appSession(appId: string) {
   const appSessionObject = session.fromPartition(partition);
   if (!configured.has(partition)) {
     configured.add(partition);
+    // As plain Chrome: some services turn away the Electron and app names in User-Agent.
+    appSessionObject.setUserAgent(browserUserAgent(appSessionObject.getUserAgent()));
     appSessionObject.setPermissionRequestHandler((_contents, permission, callback) =>
       callback(ALLOWED_PERMISSIONS.has(permission)),
     );

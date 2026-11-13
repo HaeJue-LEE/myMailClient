@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ALLOWED_PERMISSIONS,
+  browserUserAgent,
   formatFingerprint,
   mayNavigate,
   partitionFor,
@@ -37,11 +38,41 @@ describe("popupTarget", () => {
     expect(popupTarget("about:blank", APP_URL, APP_URL)).toBe("child");
   });
 
+  it("keeps pop-ups of the app's other hosts in its session", () => {
+    const team = "https://team.example.com/";
+    expect(popupTarget("https://auth.example.com/oauth2/authorize", team, team)).toBe("child");
+    expect(popupTarget("https://files.example.co.kr/x", "https://www.example.co.kr/", APP_URL)).toBe("child");
+    expect(popupTarget("https://files.example.or.kr/x", "https://www.example.or.kr/", APP_URL)).toBe("child");
+  });
+
+  it("keeps single sign-on pop-ups in the app's session, so they can answer their opener", () => {
+    const team = "https://team.example.com/";
+    expect(popupTarget("https://accounts.google.com/o/oauth2/v2/auth?client_id=123", team, team)).toBe("child");
+    expect(popupTarget("https://login.microsoftonline.com/common/oauth2/v2.0/authorize", team, team)).toBe("child");
+    expect(popupTarget("https://acme.okta.com/oauth2/v1/authorize", team, team)).toBe("child");
+    expect(popupTarget("https://github.com/login/oauth/authorize?client_id=1", team, team)).toBe("child");
+    expect(popupTarget("https://slack.com/openid/connect/authorize", team, team)).toBe("child");
+  });
+
   it("sends other sites and mailto: to the default browser", () => {
     expect(popupTarget("https://www.example.com/help", APP_URL, APP_URL)).toBe("external");
-    // Another port is another origin.
+    // Another port on the same host is another origin.
     expect(popupTarget("https://nas.example.lan:8443/", APP_URL, APP_URL)).toBe("external");
     expect(popupTarget("mailto:someone@example.com", APP_URL, APP_URL)).toBe("external");
+    // Sites with sign-in pages: only those pages stay in the app.
+    const team = "https://team.example.com/";
+    expect(popupTarget("https://github.com/someone/project", team, team)).toBe("external");
+    expect(popupTarget("https://github.com/loginsomeone/project", team, team)).toBe("external");
+    expect(popupTarget("https://slack.com/help", team, team)).toBe("external");
+    expect(popupTarget("https://docs.google.com/document/d/1", team, team)).toBe("external");
+  });
+
+  it("does not treat subdomains of shared domains as one site", () => {
+    const nas = "https://mynas.synology.me:5001/";
+    expect(popupTarget("https://other.synology.me/", nas, nas)).toBe("external");
+    expect(popupTarget("https://someone.github.io/", "https://me.github.io/", APP_URL)).toBe("external");
+    expect(popupTarget("https://other.or.kr/", "https://www.example.or.kr/", APP_URL)).toBe("external");
+    expect(popupTarget("https://192.0.2.11/", "https://192.0.2.10/", "https://192.0.2.10/")).toBe("external");
   });
 
   it("refuses anything else", () => {
@@ -98,5 +129,23 @@ describe("formatFingerprint", () => {
   it("shows Electron's sha256/base64 fingerprint as hex pairs", () => {
     const bytes = Buffer.from([0xab, 0x01, 0xff]);
     expect(formatFingerprint(`sha256/${bytes.toString("base64")}`)).toBe("AB:01:FF");
+  });
+});
+
+describe("browserUserAgent", () => {
+  it("drops Electron's and the app's names, as plain Chrome sends it", () => {
+    expect(
+      browserUserAgent(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) MailClient/0.1.5 Chrome/156.0.8078.80 Electron/45.2.3 Safari/537.36",
+      ),
+    ).toBe(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+    );
+  });
+
+  it("leaves a Chrome user agent as it is", () => {
+    const chrome =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36";
+    expect(browserUserAgent(chrome)).toBe(chrome);
   });
 });
