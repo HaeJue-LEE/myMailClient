@@ -1,13 +1,18 @@
 import { gmail as createGmail, type gmail_v1 } from "@googleapis/gmail";
-import { app, safeStorage, shell } from "electron";
+import { shell } from "electron";
 import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import { randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import path from "node:path";
-import { z } from "zod";
 import { InvalidRequestError } from "./errors";
+import {
+  type GoogleAccount,
+  getGoogleAccount,
+  listGoogleAccounts,
+  removeGoogleAccount,
+  storeGoogleAccount,
+  updateGoogleToken,
+} from "./google-accounts";
 import { type GoogleClient, getGoogleClient } from "./google-client";
 
 /**
@@ -21,17 +26,13 @@ const SCOPES = [
 ];
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
-const storedSchema = z.object({ email: z.string(), refreshToken: z.string() });
-type Stored = z.infer<typeof storedSchema>;
-
 /** `auth` is for Google APIs other than Gmail (e.g. People for contacts). */
-export type Session = { email: string; gmail: gmail_v1.Gmail; auth: OAuth2Client };
+export type Session = { id: string; email: string; gmail: gmail_v1.Gmail; auth: OAuth2Client };
 
 export class LoginCancelledError extends Error {}
 
-let current: Session | null = null;
-/** The client `current` was made with; a session is tied to its client. */
-let currentClientId: string | null = null;
+/** Open sessions by account id, with the client each was made with: a session is tied to its client. */
+const sessions = new Map<string, { session: Session; clientId: string }>();
 let activeLogin: AbortController | null = null;
 
 function oauthClient(client: GoogleClient, redirectUri?: string) {
@@ -45,71 +46,69 @@ function oauthClient(client: GoogleClient, redirectUri?: string) {
   });
 }
 
-/** Forgets the open session, e.g. after the Google client changed. */
-export function dropSession() {
-  current = null;
-  currentClientId = null;
+/** Forgets the open sessions, e.g. after the Google client changed. */
+export function dropSessions() {
+  sessions.clear();
 }
 
-function storePath() {
-  return path.join(app.getPath("userData"), "account.bin");
-}
-
-async function readStored(): Promise<Stored | null> {
-  try {
-    const encrypted = await readFile(storePath());
-    const parsed = storedSchema.safeParse(
-      JSON.parse(safeStorage.decryptString(encrypted)),
-    );
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
-async function writeStored(stored: Stored) {
-  // safeStorage uses DPAPI on Windows, so only this OS user can decrypt it.
-  await writeFile(storePath(), safeStorage.encryptString(JSON.stringify(stored)), {
-    mode: 0o600,
-  });
-}
-
-function createSession(stored: Stored, client: GoogleClient): Session {
+function createSession(account: GoogleAccount, client: GoogleClient): Session {
   const oauth = oauthClient(client);
-  oauth.setCredentials({ refresh_token: stored.refreshToken });
+  oauth.setCredentials({ refresh_token: account.refreshToken });
   oauth.on("tokens", (tokens) => {
-    if (tokens.refresh_token && tokens.refresh_token !== stored.refreshToken) {
-      void writeStored({ ...stored, refreshToken: tokens.refresh_token });
+    if (tokens.refresh_token && tokens.refresh_token !== account.refreshToken) {
+      void updateGoogleToken(account.id, tokens.refresh_token).catch(() => undefined);
     }
   });
   return {
-    email: stored.email,
+    id: account.id,
+    email: account.email,
     gmail: createGmail({ version: "v1", auth: oauth }),
     auth: oauth,
   };
 }
 
-export async function getSession() {
-  // A sign-in cannot be refreshed without the client it was made with.
-  const { client } = await getGoogleClient();
-  if (!client) return null;
-  if (current && currentClientId === client.clientId) return current;
-  const stored = await readStored();
-  current = stored ? createSession(stored, client) : null;
-  currentClientId = current ? client.clientId : null;
-  return current;
+/**
+ * The signed-in Google accounts. None while there is no Google client: a
+ * sign-in cannot be refreshed without the client it was made with.
+ */
+export async function listSignedIn(): Promise<{ id: string; email: string }[]> {
+  if (!(await getGoogleClient()).client) return [];
+  return (await listGoogleAccounts()).map(({ id, email }) => ({ id, email }));
 }
 
-export async function signOut({ revoke }: { revoke: boolean }) {
-  const stored = revoke ? await readStored() : null;
-  dropSession();
-  await rm(storePath(), { force: true });
+/** The session of a signed-in Google account; null when there is none. */
+export async function getSession(id: string): Promise<Session | null> {
   const { client } = await getGoogleClient();
-  if (stored && client) {
+  if (!client) return null;
+  const open = sessions.get(id);
+  if (open && open.clientId === client.clientId) return open.session;
+  const account = await getGoogleAccount(id);
+  if (!account) {
+    sessions.delete(id);
+    return null;
+  }
+  const session = createSession(account, client);
+  sessions.set(id, { session, clientId: client.clientId });
+  return session;
+}
+
+/** Signs one Google account out; with `revoke`, Google forgets the grant too. */
+export async function signOut(id: string, { revoke }: { revoke: boolean }) {
+  sessions.delete(id);
+  const removed = await removeGoogleAccount(id);
+  const { client } = await getGoogleClient();
+  if (revoke && removed && client) {
     await oauthClient(client)
-      .revokeToken(stored.refreshToken)
+      .revokeToken(removed.refreshToken)
       .catch(() => undefined);
   }
+}
+
+/** Signs every Google account out (their client is going away); returns their ids. */
+export async function signOutAll({ revoke }: { revoke: boolean }): Promise<string[]> {
+  const ids = (await listGoogleAccounts()).map((account) => account.id);
+  for (const id of ids) await signOut(id, { revoke });
+  return ids;
 }
 
 const RESULT_PAGE = (message: string) =>
@@ -152,8 +151,11 @@ function waitForCode(server: Server, state: string, signal: AbortSignal) {
  * Google blocks sign-in inside embedded browsers, so the consent screen opens
  * in the system browser and redirects back to a one-shot loopback server.
  * Starting a new login cancels any login still waiting.
+ *
+ * Google asks which account to use, so another one can be added. Signing in
+ * to an account already here renews its sign-in; another account is added.
  */
-export async function signIn(): Promise<{ email: string }> {
+export async function signIn(): Promise<{ id: string; email: string }> {
   const { client } = await getGoogleClient();
   if (!client) throw new InvalidRequestError("No Google client is set up");
   activeLogin?.abort();
@@ -173,7 +175,7 @@ export async function signIn(): Promise<{ email: string }> {
     await shell.openExternal(
       oauth.generateAuthUrl({
         access_type: "offline",
-        prompt: "consent",
+        prompt: "select_account consent",
         scope: SCOPES,
         state,
         code_challenge: codeChallenge,
@@ -192,11 +194,9 @@ export async function signIn(): Promise<{ email: string }> {
       .users.getProfile({ userId: "me" });
     if (!data.emailAddress) throw new Error("Google returned no email address");
 
-    const stored = { email: data.emailAddress, refreshToken: tokens.refresh_token };
-    await writeStored(stored);
-    current = createSession(stored, client);
-    currentClientId = client.clientId;
-    return { email: stored.email };
+    const stored = await storeGoogleAccount(data.emailAddress, tokens.refresh_token);
+    sessions.set(stored.id, { session: createSession(stored, client), clientId: client.clientId });
+    return { id: stored.id, email: stored.email };
   } finally {
     if (activeLogin === controller) activeLogin = null;
     server.closeAllConnections();

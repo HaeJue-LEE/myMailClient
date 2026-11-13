@@ -3,6 +3,28 @@ import type { MailErrorCode } from "@/features/mail/bridge";
 
 export class UnauthorizedError extends Error {}
 
+/**
+ * The sign-in of one Google account is dead (its grant was revoked or
+ * expired): that account is signed out, and only that one.
+ */
+export class GoogleSignInExpired extends UnauthorizedError {
+  constructor(readonly accountId: string) {
+    super("Google sign-in expired");
+  }
+}
+
+/** Runs `work` for a Google account; a dead sign-in comes out naming that account. */
+export async function forGoogleAccount<T>(accountId: string, work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (!(error instanceof GoogleSignInExpired) && isAuthFailure(error)) {
+      throw new GoogleSignInExpired(accountId);
+    }
+    throw error;
+  }
+}
+
 /** A well-formed request the app still refuses, e.g. an unverified From address. */
 export class InvalidRequestError extends Error {}
 

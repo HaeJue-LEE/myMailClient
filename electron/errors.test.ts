@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  forGoogleAccount,
+  GoogleSignInExpired,
   isApiDisabled,
   isAuthFailure,
   isMissingScope,
@@ -76,5 +78,23 @@ describe("mail server errors", () => {
     expect(isAuthFailure(error)).toBe(false);
     expect(code(error)).toBe("auth_failed");
     expect(code(new MailServerError("smtp_connection_failed"))).toBe("smtp_connection_failed");
+  });
+});
+
+describe("forGoogleAccount", () => {
+  it("names the Google account whose sign-in died", async () => {
+    const dead = Object.assign(new Error("invalid_grant"), {
+      response: { data: { error: "invalid_grant" } },
+    });
+    const failure = await forGoogleAccount("gmail-2", () => Promise.reject(dead)).catch((error) => error);
+    expect(failure).toBeInstanceOf(GoogleSignInExpired);
+    expect(failure.accountId).toBe("gmail-2");
+    expect(toErrorCode(failure, () => false)).toBe("unauthorized");
+  });
+
+  it("passes other failures and results through", async () => {
+    const limited = Object.assign(new Error("rate"), { status: 429 });
+    await expect(forGoogleAccount("gmail", () => Promise.reject(limited))).rejects.toBe(limited);
+    await expect(forGoogleAccount("gmail", async () => 7)).resolves.toBe(7);
   });
 });

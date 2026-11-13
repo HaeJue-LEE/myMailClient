@@ -117,7 +117,7 @@ export function useSetShortcut() {
   });
 }
 
-/** Forgets the entered client; its Google account is signed out with it. */
+/** Forgets the entered client; its Google accounts are signed out with it. */
 export function useRemoveGoogleClient() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -125,7 +125,7 @@ export function useRemoveGoogleClient() {
     onSuccess: (features) => {
       queryClient.setQueryData(appFeaturesKey, features);
       const active = queryClient.getQueryData<Account | null>(accountKey);
-      // The Google account in use is gone: start over with another one.
+      // A Google account in use is gone: start over with another one.
       if (active?.kind === "gmail") reloadMail();
       else void queryClient.invalidateQueries({ queryKey: accountsKey });
     },
@@ -253,7 +253,11 @@ export function useRemoveAccount() {
       const active = queryClient.getQueryData<Account | null>(accountKey);
       // Removing the account in use moves on to another one, or to the login screen.
       if (active?.id === id) reloadMail();
-      else void queryClient.invalidateQueries({ queryKey: accountsKey });
+      else {
+        void queryClient.invalidateQueries({ queryKey: accountsKey });
+        // The address book may now come from another Google account.
+        void queryClient.invalidateQueries({ queryKey: contactsKey });
+      }
     },
   });
 }
@@ -281,7 +285,11 @@ export function useMoveAccount() {
     onError: (_error, _input, context) => {
       if (context?.previous) queryClient.setQueryData(accountsKey, context.previous);
     },
-    onSuccess: (accounts) => queryClient.setQueryData(accountsKey, accounts),
+    onSuccess: (accounts) => {
+      queryClient.setQueryData(accountsKey, accounts);
+      // With no Google account in use, the address book is the first Google account's.
+      void queryClient.invalidateQueries({ queryKey: contactsKey });
+    },
   });
 }
 

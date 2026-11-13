@@ -1,5 +1,5 @@
 import type { DraftContent, SendMessageInput } from "@/features/mail/bridge";
-import { type Account, GMAIL_ACCOUNT_ID, sortAccounts } from "@/features/mail/mail-accounts";
+import { type Account, sortAccounts } from "@/features/mail/mail-accounts";
 import type {
   MailLabel,
   MailThread,
@@ -12,9 +12,14 @@ import {
   getMailCredentials,
   listMailAccounts,
 } from "./accounts";
-import { getSession } from "./auth";
+import { getSession, listSignedIn } from "./auth";
 import { getAvatar } from "./avatars";
-import { MailServerError, UnauthorizedError } from "./errors";
+import {
+  forGoogleAccount,
+  GoogleSignInExpired,
+  MailServerError,
+  UnauthorizedError,
+} from "./errors";
 import { createGmailBackend } from "./gmail/backend";
 import { createImapBackend } from "./imap/backend";
 import { createPop3Backend } from "./pop3/backend";
@@ -48,18 +53,16 @@ export type MailBackend = {
   getAttachmentData: (messageId: string, attachmentId: string) => Promise<Buffer>;
 };
 
-/** Every account that can be used: the Google account first, then IMAP, POP3, and Zoho accounts. */
+/** Every account that can be used: the Google accounts first, then IMAP, POP3, and Zoho accounts. */
 export async function listAccounts(): Promise<Account[]> {
-  const [session, mailAccounts, zohoAccounts, order] = await Promise.all([
-    getSession(),
+  const [google, mailAccounts, zohoAccounts, order] = await Promise.all([
+    listSignedIn(),
     listMailAccounts(),
     listZohoAccounts(),
     getAccountOrder(),
   ]);
   const accounts: Account[] = [
-    ...(session
-      ? [{ id: GMAIL_ACCOUNT_ID, kind: "gmail" as const, email: session.email, name: "" }]
-      : []),
+    ...google.map(({ id, email }) => ({ id, kind: "gmail" as const, email, name: "" })),
     ...mailAccounts.map(({ id, email, name, protocol }) => ({
       id,
       kind: protocol,
@@ -110,13 +113,13 @@ export async function backendForAccountId(
 
 async function backendFor(account: Account): Promise<MailBackend> {
   if (account.kind === "gmail") {
-    const session = await getSession();
-    if (!session) throw new UnauthorizedError();
-    return createGmailBackend(session);
+    const session = await getSession(account.id);
+    if (!session) throw new GoogleSignInExpired(account.id);
+    return forGoogleAccountBackend(account.id, createGmailBackend(session));
   }
   if (account.kind === "zoho") {
     const zoho = await getZohoAccount(account.id);
-    // Not UnauthorizedError: that signs the Google account out.
+    // Not UnauthorizedError: that sends the app to the sign-in screen.
     if (!zoho) throw new MailServerError("auth_failed");
     return createZohoBackend(zoho);
   }
@@ -126,4 +129,14 @@ async function backendFor(account: Account): Promise<MailBackend> {
   return credentials.protocol === "pop3"
     ? createPop3Backend(credentials)
     : createImapBackend(credentials);
+}
+
+/** The same backend, with a dead sign-in naming the Google account it belongs to. */
+function forGoogleAccountBackend(id: string, backend: MailBackend): MailBackend {
+  const tagged: Record<string, unknown> = {};
+  for (const [name, method] of Object.entries(backend)) {
+    tagged[name] = (...args: unknown[]) =>
+      forGoogleAccount(id, () => (method as (...input: unknown[]) => Promise<unknown>)(...args));
+  }
+  return tagged as MailBackend;
 }

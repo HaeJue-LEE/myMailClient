@@ -12,7 +12,11 @@ export type AccountKind = "gmail" | "imap" | "pop3" | "zoho";
 export const INCOMING_PROTOCOLS = ["imap", "pop3"] as const;
 export type IncomingProtocol = (typeof INCOMING_PROTOCOLS)[number];
 
-/** The id of the one Google account; IMAP accounts have generated ids. */
+/**
+ * The id of the Google account signed in before several were possible (it
+ * keeps it); later ones are `gmail-<hash of the address>`. IMAP and POP3
+ * accounts have generated ids, Zoho accounts `zoho-<Zoho account id>`.
+ */
 export const GMAIL_ACCOUNT_ID = "gmail";
 
 export type Account = {

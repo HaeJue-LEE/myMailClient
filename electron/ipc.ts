@@ -18,7 +18,6 @@ import { MAX_CONTACT_NAME_LENGTH } from "@/features/mail/contacts";
 import { emailSchema } from "@/features/mail/email";
 import {
   type Account,
-  GMAIL_ACCOUNT_ID,
   mailAccountInputSchema,
 } from "@/features/mail/mail-accounts";
 import { MAX_SEARCH_LENGTH } from "@/features/mail/routes";
@@ -32,11 +31,13 @@ import {
   storeMailAccount,
 } from "./accounts";
 import {
-  dropSession,
+  dropSessions,
   getSession,
   LoginCancelledError,
+  type Session,
   signIn,
   signOut,
+  signOutAll,
 } from "./auth";
 import {
   clientHint,
@@ -60,10 +61,12 @@ import {
 } from "./contacts";
 import { composeSchema } from "./compose";
 import {
+  forGoogleAccount,
+  GoogleSignInExpired,
   InvalidRequestError,
-  isAuthFailure,
   toErrorCode,
 } from "./errors";
+import { getGoogleAccount } from "./google-accounts";
 import { safeFilename } from "./gmail/mime";
 import { getHiddenContacts, setContactsHidden } from "./hidden-contacts";
 import { dropImap, verifyImap } from "./imap/connection";
@@ -127,13 +130,21 @@ const MAX_HIDE_BATCH = 5000;
 const backend = async () => (await requireBackend()).backend;
 
 /**
- * The Google session, for the address book. Contacts are shared by every
- * account, so this does not depend on which account is in use.
+ * The Google account whose address book the app shows and adds to: the
+ * account in use when it is a Google account, otherwise the first Google
+ * account in the list. Null when no Google account is signed in.
  */
-async function googleSession() {
-  const session = await getSession();
+async function addressBookSession(): Promise<Session | null> {
+  const [accounts, active] = await Promise.all([listAccounts(), getActiveAccount()]);
+  const google = active?.kind === "gmail" ? active : accounts.find((item) => item.kind === "gmail");
+  return google ? getSession(google.id) : null;
+}
+
+/** Runs `work` with the address book's Google account; a dead sign-in names that account. */
+async function withAddressBook<T>(work: (session: Session) => Promise<T>): Promise<T> {
+  const session = await addressBookSession();
   if (!session) throw new InvalidRequestError("No Google account to keep contacts in");
-  return session;
+  return forGoogleAccount(session.id, () => work(session));
 }
 
 async function appFeatures() {
@@ -164,7 +175,7 @@ export function registerMailHandlers(options: {
       run: async (client) => {
         await saveCustomGoogleClient(client);
         // A session made with another client cannot be refreshed with this one.
-        dropSession();
+        dropSessions();
         return appFeatures();
       },
     },
@@ -237,9 +248,12 @@ export function registerMailHandlers(options: {
       input: noInput,
       run: async () => {
         if ((await getGoogleClient()).source === "custom") {
-          // Its sign-in would be useless without it.
-          await signOut({ revoke: true });
-          if ((await getActiveId()) === GMAIL_ACCOUNT_ID) await setActiveId(null);
+          // Sign-ins made with it cannot be refreshed without it.
+          const activeId = await getActiveId();
+          for (const id of await signOutAll({ revoke: true })) {
+            await removeAvatar(id);
+            if (activeId === id) await setActiveId(null);
+          }
           await removeCustomGoogleClient();
         }
         return appFeatures();
@@ -265,18 +279,18 @@ export function registerMailHandlers(options: {
     login: {
       input: noInput,
       run: async () => {
-        const { email } = await signIn();
-        await setActiveId(GMAIL_ACCOUNT_ID);
+        const { id, email } = await signIn();
+        await setActiveId(id);
         options.onSignedIn();
-        return { id: GMAIL_ACCOUNT_ID, kind: "gmail", email, name: "" };
+        return { id, kind: "gmail", email, name: "" };
       },
     },
     removeAccount: {
       input: z.object({ id: accountId }),
       run: async ({ id }) => {
         const zoho = await getZohoAccount(id);
-        if (id === GMAIL_ACCOUNT_ID) {
-          await signOut({ revoke: true });
+        if (await getGoogleAccount(id)) {
+          await signOut(id, { revoke: true });
           if ((await getActiveId()) === id) await setActiveId(null);
         } else if (zoho) {
           await revokeZoho(zoho);
@@ -512,8 +526,9 @@ export function registerMailHandlers(options: {
       input: noInput,
       run: async () => {
         // Only Google has an address book; without it only recent senders show.
-        const session = await getSession();
-        return session ? listContacts(session.auth, session.email) : [];
+        const session = await addressBookSession();
+        if (!session) return [];
+        return forGoogleAccount(session.id, () => listContacts(session.auth, session.email));
       },
     },
     createContact: {
@@ -522,8 +537,7 @@ export function registerMailHandlers(options: {
         email: emailSchema,
       }),
       run: async (input) => {
-        const { auth, email } = await googleSession();
-        return createContact(auth, email, input);
+        return withAddressBook(({ auth, email }) => createContact(auth, email, input));
       },
     },
     updateContact: {
@@ -535,8 +549,7 @@ export function registerMailHandlers(options: {
         newEmail: emailSchema,
       }),
       run: async (input) => {
-        const { auth, email } = await googleSession();
-        return updateContact(auth, email, input);
+        return withAddressBook(({ auth, email }) => updateContact(auth, email, input));
       },
     },
     getHiddenContacts: {
@@ -553,7 +566,7 @@ export function registerMailHandlers(options: {
     deleteContact: {
       input: z.object({ resourceName: personResource }),
       run: async ({ resourceName }) => {
-        await deleteContact((await googleSession()).auth, resourceName);
+        await withAddressBook(({ auth }) => deleteContact(auth, resourceName));
         return null;
       },
     },
@@ -569,7 +582,10 @@ export function registerMailHandlers(options: {
           const input = handler.input.parse(raw);
           return { ok: true, data: await handler.run(input as never, event) };
         } catch (error) {
-          if (isAuthFailure(error)) await signOut({ revoke: false });
+          // Only the Google account whose sign-in died is signed out.
+          if (error instanceof GoogleSignInExpired) {
+            await signOut(error.accountId, { revoke: false }).catch(() => undefined);
+          }
           const code = toErrorCode(
             error,
             (e) => e instanceof LoginCancelledError,

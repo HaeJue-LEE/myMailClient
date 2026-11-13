@@ -46,11 +46,25 @@ const THREAD_PARTS_FIELDS = `id,messages(payload(${partFields(5)}))`;
 /** Files that make Gmail's `has:attachment` match but are not attachments to the reader. */
 const NOT_ATTACHMENTS = "filename:(vcf OR vcard OR p7s OR asc OR sig)";
 
-/** Rows by thread id, reused while Gmail's historyId for the thread is unchanged. */
-const summaryCache = new Map<string, { historyId: string; summary: ThreadSummary }>();
+/**
+ * Rows by thread id, reused while Gmail's historyId for the thread is
+ * unchanged. One cache per Google account (its Gmail client): thread ids are
+ * only unique within a mailbox.
+ */
+type SummaryCache = Map<string, { historyId: string; summary: ThreadSummary }>;
+let summaryCaches = new WeakMap<Gmail, SummaryCache>();
 const SUMMARY_CACHE_SIZE = 3_000;
 
-function remember(id: string, historyId: string, summary: ThreadSummary) {
+function summaryCacheOf(gmail: Gmail): SummaryCache {
+  let cache = summaryCaches.get(gmail);
+  if (!cache) {
+    cache = new Map();
+    summaryCaches.set(gmail, cache);
+  }
+  return cache;
+}
+
+function remember(summaryCache: SummaryCache, id: string, historyId: string, summary: ThreadSummary) {
   summaryCache.delete(id);
   summaryCache.set(id, { historyId, summary });
   for (const oldest of summaryCache.keys()) {
@@ -61,7 +75,7 @@ function remember(id: string, historyId: string, summary: ThreadSummary) {
 
 /** For tests: forget every cached row. */
 export function clearSummaryCache() {
-  summaryCache.clear();
+  summaryCaches = new WeakMap();
 }
 
 type ListParams = { labelId?: string; query?: string; pageToken?: string };
@@ -146,6 +160,7 @@ async function attachmentFlags(gmail: Gmail, params: ListParams, rows: ThreadSum
  * little more than the list call itself.
  */
 export async function listThreads(gmail: Gmail, params: ListParams): Promise<ThreadPage> {
+  const summaryCache = summaryCacheOf(gmail);
   const { data } = await paced(COST.threadsList, () =>
     gmail.users.threads.list({
       userId: USER,
@@ -190,7 +205,7 @@ export async function listThreads(gmail: Gmail, params: ListParams): Promise<Thr
     if (!flags.has(row.id)) return row;
     const flagged = { ...row, hasAttachment: flags.get(row.id) ?? false };
     const historyId = listed.find((thread) => thread.id === row.id)?.historyId;
-    if (historyId) remember(row.id, historyId, flagged);
+    if (historyId) remember(summaryCache, row.id, historyId, flagged);
     return flagged;
   });
   return { threads, nextPageToken: data.nextPageToken ?? null };

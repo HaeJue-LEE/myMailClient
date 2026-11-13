@@ -39,7 +39,7 @@ export function GoogleAccountSetup({
   const features = useAppFeatures();
   const accounts = useAccounts();
   const login = useLogin();
-  const google = accounts.data?.find((account) => account.kind === "gmail");
+  const signedIn = accounts.data?.filter((account) => account.kind === "gmail") ?? [];
 
   if (features.isPending) return <p className="text-sm opacity-60">불러오는 중…</p>;
   if (!features.data) {
@@ -60,27 +60,26 @@ export function GoogleAccountSetup({
     </button>
   );
 
-  if (google) {
-    return (
-      <div className="space-y-3 text-sm">
-        <p>
-          Google 계정은 하나만 추가할 수 있습니다. 이미 <b>{google.email}</b> 계정이 있습니다.
-          다른 Gmail 주소는 &lsquo;Gmail (IMAP, 앱 비밀번호)&rsquo;로 추가해 주세요.
-        </p>
-        {cancel}
-      </div>
-    );
-  }
-
   if (features.data.googleClient === "none") return <ClientForm cancel={cancel} />;
 
   return (
     <div className="space-y-3 text-sm">
       <p>
-        버튼을 누르면 브라우저에서 Google 로그인 화면이 열립니다. 로그인하고 권한을 허용하면 이
-        앱으로 돌아와 계정이 추가됩니다.
+        버튼을 누르면 브라우저에서 Google 로그인 화면이 열립니다. 추가할 계정을 고르고 권한을
+        허용하면 이 앱으로 돌아와 계정이 추가됩니다.
       </p>
-      <ClientInUse source={features.data.googleClient} hint={features.data.googleClientHint} />
+      {signedIn.length > 0 && (
+        <p className="text-xs opacity-70">
+          이미 추가한 Google 계정: {signedIn.map((account) => account.email).join(", ")}. 같은
+          계정으로 다시 로그인하면 그 계정의 로그인만 새로 고칩니다. 다른 계정도 테스트 사용자로
+          등록되어 있어야 합니다.
+        </p>
+      )}
+      <ClientInUse
+        source={features.data.googleClient}
+        hint={features.data.googleClientHint}
+        signedInCount={signedIn.length}
+      />
       {login.error && (
         <p role="alert" className="text-red-600">
           {login.error instanceof MailApiError && login.error.code === "login_cancelled"
@@ -106,11 +105,30 @@ export function GoogleAccountSetup({
   );
 }
 
-/** Which client sign-in uses; an entered one can be removed to enter another. */
-function ClientInUse({ source, hint }: { source: "built-in" | "custom"; hint: string | null }) {
+/**
+ * Which client sign-in uses. An entered one can be removed to enter another,
+ * while no Google account depends on it: its sign-ins would go with it.
+ */
+function ClientInUse({
+  source,
+  hint,
+  signedInCount,
+}: {
+  source: "built-in" | "custom";
+  hint: string | null;
+  signedInCount: number;
+}) {
   const remove = useRemoveGoogleClient();
   if (source === "built-in") {
     return <p className="text-xs opacity-60">이 앱에 내장된 Google 클라이언트를 사용합니다.</p>;
+  }
+  if (signedInCount > 0) {
+    return (
+      <p className="text-xs opacity-60">
+        직접 입력한 Google 클라이언트 사용 중 ({hint}). 다른 클라이언트로 바꾸려면 먼저 Google
+        계정을 모두 삭제해 주세요.
+      </p>
+    );
   }
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
