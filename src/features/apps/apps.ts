@@ -52,17 +52,25 @@ export const appIconSchema = z.string().refine(isAppIcon, { message: "icon" });
  */
 export type TrustedCert = { host: string; fingerprint: string };
 
-export type MyApp = {
+/** A web app (opened at its address) or a program on this computer (run). */
+export const APP_KINDS = ["web", "program"] as const;
+export type AppKind = (typeof APP_KINDS)[number];
+
+type AppBase = {
   id: string;
   name: string;
-  url: string;
   /** Sidebar section; empty for none. */
   group: string;
-  openIn: OpenMode;
   /** Also shown as an icon in the left rail, for one-click access. */
   pinned: boolean;
   /** The picked picture (see `isAppIcon`); null shows the letter tile. */
   icon: string | null;
+};
+
+export type WebApp = AppBase & {
+  kind: "web";
+  url: string;
+  openIn: OpenMode;
   /**
    * Opened in the main window, the app fills the area without the toolbar
    * above it (navigation buttons, title and address); a thin strip brings
@@ -71,6 +79,38 @@ export type MyApp = {
   hideAddressBar: boolean;
   trustedCerts: TrustedCert[];
 };
+
+/**
+ * A program on this computer, run as if double-clicked. Its path is only
+ * ever one the user picked in the file dialog (see the main process), never
+ * typed: the page cannot make the app run something of its choosing.
+ */
+export type ProgramApp = AppBase & {
+  kind: "program";
+  path: string;
+};
+
+export type MyApp = WebApp | ProgramApp;
+
+/** What a program app may be: a program, a shortcut to one, or a batch file. */
+export const PROGRAM_EXTENSIONS = ["exe", "lnk", "bat", "cmd"] as const;
+export const MAX_PROGRAM_PATH_LENGTH = 1000;
+
+/**
+ * True for a full Windows path (`C:\…` or a network share `\\server\share\…`)
+ * to a file with one of `PROGRAM_EXTENSIONS`, and no control characters.
+ */
+export function isProgramPath(value: string) {
+  if (value.length > MAX_PROGRAM_PATH_LENGTH || /[\u0000-\u001f]/.test(value)) return false;
+  if (!/^(?:[A-Za-z]:\\|\\\\[^\\]+\\[^\\]+\\)/.test(value)) return false;
+  const extension = /\.([A-Za-z]+)$/.exec(value)?.[1]?.toLowerCase();
+  return (PROGRAM_EXTENSIONS as readonly string[]).includes(extension ?? "");
+}
+
+/** The file name at the end of a path, e.g. `example.exe`. */
+export function fileNameOf(path: string) {
+  return path.split(/[\\/]/).at(-1) ?? path;
+}
 
 /**
  * The address of an app: http or https only (no `file:`, `javascript:`, or
@@ -104,19 +144,33 @@ const appUrlSchema = z
   .refine((value) => parseAppUrl(value) !== null, { message: "url" })
   .transform((value) => (parseAppUrl(value) as URL).toString());
 
-/** What the add / edit form sends; `id` changes an existing app. */
-export const myAppInputSchema = z.object({
+export const programPathSchema = z.string().refine(isProgramPath, { message: "path" });
+
+const commonInput = {
   id: z.string().min(1).max(64).optional(),
   name: z.string().trim().min(1).max(MAX_APP_NAME_LENGTH),
-  url: appUrlSchema,
   group: z.string().trim().max(MAX_GROUP_LENGTH),
-  openIn: z.enum(OPEN_MODES),
   pinned: z.boolean(),
   /** Left out: an edited app keeps its picture. Null: back to the letter tile. */
   icon: appIconSchema.nullable().optional(),
-  /** Left out: an edited app keeps the setting. */
-  hideAddressBar: z.boolean().optional(),
-});
+};
+
+/**
+ * What the add / edit form sends; `id` changes an existing app. A program's
+ * path is checked again in the main process against the ones the user
+ * picked; see there.
+ */
+export const myAppInputSchema = z.discriminatedUnion("kind", [
+  z.object({
+    ...commonInput,
+    kind: z.literal("web"),
+    url: appUrlSchema,
+    openIn: z.enum(OPEN_MODES),
+    /** Left out: an edited app keeps the setting. */
+    hideAddressBar: z.boolean().optional(),
+  }),
+  z.object({ ...commonInput, kind: z.literal("program"), path: programPathSchema }),
+]);
 export type MyAppInput = z.input<typeof myAppInputSchema>;
 
 /** Apps by group, in list order; groups in the order they first appear. */
@@ -136,8 +190,18 @@ export function groupSuggestions(apps: readonly MyApp[]) {
 }
 
 /** The host (with its port) an app's address shows, e.g. `nas.example.lan:5001`. */
-export function appHost(app: Pick<MyApp, "url">) {
+export function appHost(app: Pick<WebApp, "url">) {
   return parseAppUrl(app.url)?.host ?? app.url;
+}
+
+/** What an app opens, in short: a web app's host, a program's file name. */
+export function appTarget(app: MyApp) {
+  return app.kind === "web" ? appHost(app) : fileNameOf(app.path);
+}
+
+/** How an app opens, e.g. "새 창에서 열기" or "프로그램 실행". */
+export function openLabel(app: MyApp) {
+  return app.kind === "web" ? `${OPEN_MODE_LABELS[app.openIn]} 열기` : "프로그램 실행";
 }
 
 /** One letter for the app's tile when it has no picture. */

@@ -57,6 +57,8 @@ const ICON_PATHS = {
   globe: "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
   lockOpen: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 7.5-2",
   settings: "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4",
+  /** A program window with a prompt: a MyApps entry that runs a program. */
+  program: "M3 5h18v14H3zM7 10l3 2-3 2M12 15h5",
   /** A panel with its left column, and an arrow folding it in or out. */
   sidebarClose: "M3 4h18v16H3zM9 4v16M16 9l-3 3 3 3",
   sidebarOpen: "M3 4h18v16H3zM9 4v16M13 9l3 3-3 3",

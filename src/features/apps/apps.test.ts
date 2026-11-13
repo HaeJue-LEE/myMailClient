@@ -2,18 +2,26 @@ import { describe, expect, it } from "vitest";
 import {
   appHost,
   appInitial,
+  appTarget,
+  fileNameOf,
   groupApps,
   groupSuggestions,
   isAppIcon,
+  isProgramPath,
   MAX_APP_ICON_LENGTH,
   type MyApp,
   myAppInputSchema,
+  openLabel,
   parseAppUrl,
+  type WebApp,
   withScheme,
 } from "@/features/apps/apps";
 import { appEditHref, appViewHref, isAppViewPath } from "@/features/apps/routes";
 
-const app = (id: string, group: string): MyApp => ({
+const TOOL_PATH = "C:\\Tools\\Example\\example.exe";
+
+const app = (id: string, group: string): WebApp => ({
+  kind: "web",
   id,
   name: id,
   url: "https://nas.example.lan:5001/",
@@ -62,6 +70,7 @@ describe("myAppInputSchema", () => {
   it("normalises the address and trims the fields", () => {
     expect(
       myAppInputSchema.parse({
+        kind: "web",
         name: "  우리집 NAS ",
         url: " https://NAS.example.lan:5001 ",
         group: " NAS ",
@@ -69,6 +78,7 @@ describe("myAppInputSchema", () => {
         pinned: true,
       }),
     ).toEqual({
+      kind: "web",
       name: "우리집 NAS",
       url: "https://nas.example.lan:5001/",
       group: "NAS",
@@ -78,7 +88,7 @@ describe("myAppInputSchema", () => {
   });
 
   it("refuses an empty name, a bad address, or an unknown way to open", () => {
-    const valid = { name: "NAS", url: "https://nas.example.lan", group: "", openIn: "embed", pinned: false };
+    const valid = { kind: "web", name: "NAS", url: "https://nas.example.lan", group: "", openIn: "embed", pinned: false };
     expect(myAppInputSchema.safeParse(valid).success).toBe(true);
     expect(myAppInputSchema.safeParse({ ...valid, name: "  " }).success).toBe(false);
     expect(myAppInputSchema.safeParse({ ...valid, url: "file:///etc/passwd" }).success).toBe(false);
@@ -86,6 +96,52 @@ describe("myAppInputSchema", () => {
     expect(myAppInputSchema.safeParse({ ...valid, icon: PNG }).success).toBe(true);
     expect(myAppInputSchema.safeParse({ ...valid, icon: null }).success).toBe(true);
     expect(myAppInputSchema.safeParse({ ...valid, icon: "https://evil.test/x.png" }).success).toBe(false);
+    // Without a kind it is neither.
+    expect(myAppInputSchema.safeParse({ ...valid, kind: undefined }).success).toBe(false);
+  });
+
+  it("takes a program with its path, and no address", () => {
+    const program = { kind: "program", name: "Example", path: TOOL_PATH, group: "", pinned: false };
+    expect(myAppInputSchema.parse(program)).toEqual(program);
+    expect(myAppInputSchema.safeParse({ ...program, path: "https://nas.example.lan" }).success).toBe(false);
+    expect(myAppInputSchema.safeParse({ ...program, kind: "web" }).success).toBe(false);
+  });
+});
+
+describe("isProgramPath", () => {
+  it("accepts full paths to programs, shortcuts, and batch files", () => {
+    for (const path of [
+      TOOL_PATH,
+      "D:\\Portable Apps\\Viewer\\VIEWER.EXE",
+      "C:\\Users\\Public\\Desktop\\Example.lnk",
+      "C:\\Scripts\\backup.bat",
+      "C:\\Scripts\\sync.cmd",
+      "\\\\fileserver\\tools\\example.exe",
+    ]) {
+      expect(isProgramPath(path), path).toBe(true);
+    }
+  });
+
+  it("refuses relative paths, other files, and control characters", () => {
+    for (const path of [
+      "example.exe",
+      "Tools\\example.exe",
+      "C:example.exe",
+      "C:\\Tools\\notes.txt",
+      "C:\\Tools\\example.exe.txt",
+      "C:\\Tools\\example",
+      "C:\\Tools\\run.exe\nC:\\Tools\\other.exe",
+      "\\\\fileserver\\example.exe",
+      `C:\\${"a".repeat(1000)}.exe`,
+      "",
+    ]) {
+      expect(isProgramPath(path), JSON.stringify(path)).toBe(false);
+    }
+  });
+
+  it("gives the file name at the end of a path", () => {
+    expect(fileNameOf(TOOL_PATH)).toBe("example.exe");
+    expect(fileNameOf("\\\\fileserver\\tools\\example.exe")).toBe("example.exe");
   });
 });
 
@@ -129,6 +185,14 @@ describe("display", () => {
     expect(appInitial(" synology")).toBe("S");
     expect(appInitial("우리집")).toBe("우");
     expect(appInitial("")).toBe("?");
+  });
+
+  it("tells what an app opens and how", () => {
+    const program: MyApp = { kind: "program", id: "p", name: "Example", path: TOOL_PATH, group: "", pinned: false, icon: null };
+    expect(appTarget(app("a", ""))).toBe("nas.example.lan:5001");
+    expect(appTarget(program)).toBe("example.exe");
+    expect(openLabel({ ...app("a", ""), openIn: "window" })).toBe("새 창에서 열기");
+    expect(openLabel(program)).toBe("프로그램 실행");
   });
 });
 

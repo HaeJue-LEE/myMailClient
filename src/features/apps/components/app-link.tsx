@@ -3,12 +3,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useOpenApp } from "@/features/apps/api";
-import { type MyApp, OPEN_MODE_LABELS } from "@/features/apps/apps";
+import { type MyApp, openLabel } from "@/features/apps/apps";
 import { appViewHref } from "@/features/apps/routes";
 
 /**
  * Opens an app the way it is set to: a link to its page in the app for an
- * embedded one, a button that opens its window or the default browser otherwise.
+ * embedded web app, a button that opens its window or the default browser,
+ * or runs the program, otherwise.
  */
 export function AppLink({
   app,
@@ -24,7 +25,7 @@ export function AppLink({
   children: ReactNode;
 }) {
   const openApp = useOpenApp();
-  if (app.openIn === "embed") {
+  if (app.kind === "web" && app.openIn === "embed") {
     return (
       <Link
         href={appViewHref(app.id)}
@@ -41,7 +42,7 @@ export function AppLink({
       type="button"
       onClick={() => openApp.mutate({ id: app.id })}
       disabled={openApp.isPending}
-      title={`${title ?? app.name} (${OPEN_MODE_LABELS[app.openIn]} 열기)`}
+      title={`${title ?? app.name} (${openLabel(app)})`}
       className={className}
     >
       {children}

@@ -1,5 +1,5 @@
 import { type BrowserWindow, type WebContents, WebContentsView } from "electron";
-import type { MyApp } from "@/features/apps/apps";
+import type { MyApp, WebApp } from "@/features/apps/apps";
 import {
   type AppViewState,
   VIEW_STATE_CHANNEL,
@@ -26,7 +26,7 @@ const MAX_LIVE_VIEWS = 4;
 const ERR_ABORTED = -3;
 
 type Live = {
-  app: MyApp;
+  app: WebApp;
   view: WebContentsView;
   error?: AppViewState["error"];
 };
@@ -72,7 +72,7 @@ export class AppViews {
   }
 
   /** Shows the app's view at `bounds`, creating and loading it the first time. */
-  show(item: MyApp, bounds: ViewBounds, ticket: number): AppViewState {
+  show(item: WebApp, bounds: ViewBounds, ticket: number): AppViewState {
     if (ticket !== this.hides) {
       const current = this.live.get(item.id);
       return current
@@ -129,11 +129,11 @@ export class AppViews {
     }
   }
 
-  /** The app as just saved: its view keeps going unless its address changed. */
+  /** The app as just saved: its view keeps going unless its address changed (or it became a program). */
   update(item: MyApp) {
     const entry = this.live.get(item.id);
     if (!entry) return;
-    if (entry.app.url !== item.url) this.close(item.id);
+    if (item.kind !== "web" || entry.app.url !== item.url) this.close(item.id);
     else entry.app = item;
   }
 
@@ -148,7 +148,7 @@ export class AppViews {
     entry.view.webContents.close();
   }
 
-  private create(item: MyApp): Live {
+  private create(item: WebApp): Live {
     const view = new WebContentsView({ webPreferences: appWebPreferences(item.id) });
     const entry: Live = { app: item, view };
     view.setVisible(false);

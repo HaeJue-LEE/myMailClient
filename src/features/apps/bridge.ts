@@ -8,6 +8,9 @@ import type { MyApp, MyAppInput } from "@/features/apps/apps";
 
 export type AppsErrorCode = "invalid_request" | "not_found" | "internal_error";
 
+/** A program just picked in the file dialog, for the form to show and save. */
+export type PickedProgram = { path: string; name: string; icon: string | null };
+
 export type AppsResult<T> = { ok: true; data: T } | { ok: false; error: AppsErrorCode };
 
 /** Where the embedded view goes in the window, in CSS pixels of the page. */
@@ -44,8 +47,14 @@ export type AppsMethods = {
    */
   chooseAppIcon: () => { icon: string | null };
   /**
-   * Opens an app in a window of its own or in the default browser: as set
-   * for it, or as `mode` says. Embedded apps are shown with `showView`.
+   * Asks for a program (exe, shortcut, batch file) with the file dialog;
+   * null when cancelled. Only a path picked this way can be saved.
+   */
+  chooseProgram: () => { program: PickedProgram | null };
+  /**
+   * Opens a web app in a window of its own or in the default browser (as
+   * set for it, or as `mode` says), or runs a program. Embedded apps are
+   * shown with `showView`.
    */
   openApp: (input: { id: string; mode?: "window" | "browser" }) => null;
   /** Shows the app's embedded view at `bounds`, loading it the first time. */
@@ -72,6 +81,7 @@ export const APPS_METHODS = [
   "setAppOrder",
   "clearTrustedCerts",
   "chooseAppIcon",
+  "chooseProgram",
   "openApp",
   "showView",
   "setViewBounds",

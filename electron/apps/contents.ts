@@ -9,7 +9,7 @@ import {
   type WebContents,
 } from "electron";
 import path from "node:path";
-import type { MyApp } from "@/features/apps/apps";
+import type { WebApp } from "@/features/apps/apps";
 import { safeFilename } from "../gmail/mime";
 import {
   ALLOWED_PERMISSIONS,
@@ -80,7 +80,7 @@ export function appWebPreferences(appId: string) {
  * Applies the app's rules to one of its pages. Pop-ups it may open are app
  * windows too, and get the same rules.
  */
-export function wireAppContents(contents: WebContents, item: Pick<MyApp, "id" | "url">, icon: string) {
+export function wireAppContents(contents: WebContents, item: Pick<WebApp, "id" | "url">, icon: string) {
   const { id } = contents;
   owners.set(id, item.id);
   contents.once("destroyed", () => owners.delete(id));
@@ -124,7 +124,7 @@ export function forgetDeclined(appId: string) {
   for (const key of declined) if (key.startsWith(`${appId}\n`)) declined.delete(key);
 }
 
-async function askToTrust(contents: WebContents, item: MyApp, host: string, error: string, certificate: Certificate) {
+async function askToTrust(contents: WebContents, item: WebApp, host: string, error: string, certificate: Certificate) {
   const parent = BrowserWindow.fromWebContents(contents) ?? BrowserWindow.getFocusedWindow();
   const options = {
     type: "warning" as const,
@@ -178,6 +178,7 @@ export function handleCertificateError(
   const key = certKey(appId, host, cert.fingerprint);
   void (async () => {
     const item = await getApp(appId);
+    if (item.kind !== "web") return false;
     if (isCertTrusted(item, cert)) return true;
     if (declined.has(key)) return false;
     let pending = asking.get(key);

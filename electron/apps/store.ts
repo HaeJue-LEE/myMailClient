@@ -10,30 +10,48 @@ import {
   type MyAppInput,
   myAppInputSchema,
   OPEN_MODES,
+  programPathSchema,
   type TrustedCert,
+  type WebApp,
 } from "@/features/apps/apps";
 import { InvalidRequestError } from "../errors";
 
 /**
  * The MyApps list (`apps.json`), one for the whole app. Holds no passwords:
  * each web app signs in by itself, and its session is kept in its own
- * Electron partition (see sessions.ts).
+ * Electron partition (see contents.ts).
  */
 const trustedCertSchema = z.object({ host: z.string(), fingerprint: z.string() });
-const appSchema = z.object({
+const commonFields = {
   id: z.string().min(1),
   name: z.string(),
-  url: z.string(),
   group: z.string().default(""),
-  openIn: z.enum(OPEN_MODES).catch("embed"),
   pinned: z.boolean().default(false),
   // Missing (a file from before pictures) or damaged: the letter tile.
   icon: appIconSchema.nullable().catch(null),
+};
+const webAppSchema = z.object({
+  ...commonFields,
+  kind: z.literal("web"),
+  url: z.string(),
+  openIn: z.enum(OPEN_MODES).catch("embed"),
   hideAddressBar: z.boolean().catch(false),
   trustedCerts: z.array(trustedCertSchema).default([]),
 });
-const fileSchema = z.object({ apps: z.array(appSchema) });
-type AppsFile = z.infer<typeof fileSchema>;
+const programAppSchema = z.object({
+  ...commonFields,
+  kind: z.literal("program"),
+  // Checked again on reading: a hand-edited file cannot make it run anything else.
+  path: programPathSchema,
+});
+const appSchema = z.preprocess(
+  // Apps saved before programs existed have no kind: they are web apps.
+  (value) =>
+    value && typeof value === "object" && !("kind" in value) ? { ...value, kind: "web" } : value,
+  z.discriminatedUnion("kind", [webAppSchema, programAppSchema]),
+);
+
+type AppsFile = { apps: MyApp[] };
 
 export class AppNotFoundError extends Error {}
 
@@ -46,8 +64,17 @@ const filePath = () => path.join(app.getPath("userData"), "apps.json");
 
 async function readAppsFile(): Promise<AppsFile> {
   try {
-    const parsed = fileSchema.safeParse(JSON.parse(await readFile(filePath(), "utf8")));
-    if (parsed.success) return parsed.data;
+    const parsed = z
+      .object({ apps: z.array(z.unknown()) })
+      .safeParse(JSON.parse(await readFile(filePath(), "utf8")));
+    if (parsed.success) {
+      // An app that cannot be read is left out, rather than losing the whole list.
+      const apps = parsed.data.apps.flatMap((item) => {
+        const one = appSchema.safeParse(item);
+        return one.success ? [one.data] : [];
+      });
+      return { apps };
+    }
   } catch {
     // Missing or not JSON.
   }
@@ -73,7 +100,8 @@ async function persist(file: AppsFile) {
   await writing;
 }
 
-const copy = (item: MyApp): MyApp => ({ ...item, trustedCerts: [...item.trustedCerts] });
+const copy = (item: MyApp): MyApp =>
+  item.kind === "web" ? { ...item, trustedCerts: [...item.trustedCerts] } : { ...item };
 
 export async function listApps(): Promise<MyApp[]> {
   return (await load()).apps.map(copy);
@@ -86,35 +114,49 @@ export async function getApp(id: string): Promise<MyApp> {
 }
 
 /**
+ * The app as saved from the form's `fields`, over `previous` when editing.
+ * What the form leaves out (the picture, the address bar setting) is kept;
+ * an app changed to the other kind keeps nothing of its old kind.
+ */
+function build(id: string, fields: z.output<typeof myAppInputSchema>, previous: MyApp | null): MyApp {
+  const common = {
+    id,
+    name: fields.name,
+    group: fields.group,
+    pinned: fields.pinned,
+    icon: fields.icon === undefined ? (previous?.icon ?? null) : fields.icon,
+  };
+  if (fields.kind === "program") return { ...common, kind: "program", path: fields.path };
+  const before = previous?.kind === "web" ? previous : null;
+  return {
+    ...common,
+    kind: "web",
+    url: fields.url,
+    openIn: fields.openIn,
+    hideAddressBar: fields.hideAddressBar ?? before?.hideAddressBar ?? false,
+    trustedCerts: before ? [...before.trustedCerts] : [],
+  };
+}
+
+/**
  * Adds an app (no `id`) at the end of the list, or changes one. Returns it
  * and, for a change, the app as it was (to tell what changed).
  */
 export async function saveApp(raw: MyAppInput): Promise<{ saved: MyApp; previous: MyApp | null }> {
-  const input = myAppInputSchema.parse(raw);
+  const fields = myAppInputSchema.parse(raw);
+  const { id } = fields;
   const file = await load();
-  const { id, ...fields } = input;
   if (id) {
     const index = file.apps.findIndex((item) => item.id === id);
     if (index < 0) throw new AppNotFoundError(id);
     const previous = file.apps[index];
-    const saved = {
-      ...previous,
-      ...fields,
-      icon: fields.icon === undefined ? previous.icon : fields.icon,
-      hideAddressBar: fields.hideAddressBar ?? previous.hideAddressBar,
-    };
+    const saved = build(id, fields, previous);
     file.apps[index] = saved;
     await persist(file);
     return { saved: copy(saved), previous: copy(previous) };
   }
   if (file.apps.length >= MAX_APPS) throw new InvalidRequestError("Too many apps");
-  const saved: MyApp = {
-    id: randomUUID(),
-    ...fields,
-    icon: fields.icon ?? null,
-    hideAddressBar: fields.hideAddressBar ?? false,
-    trustedCerts: [],
-  };
+  const saved = build(randomUUID(), fields, null);
   file.apps.push(saved);
   await persist(file);
   return { saved: copy(saved), previous: null };
@@ -141,27 +183,33 @@ export async function setAppOrder(ids: string[]): Promise<MyApp[]> {
 }
 
 /** True when `cert` was trusted for the app (same host and fingerprint). */
-export function isCertTrusted(item: Pick<MyApp, "trustedCerts">, cert: TrustedCert) {
+export function isCertTrusted(item: Pick<WebApp, "trustedCerts">, cert: TrustedCert) {
   return item.trustedCerts.some(
     (trusted) => trusted.host === cert.host && trusted.fingerprint === cert.fingerprint,
   );
 }
 
-/** Trusts `cert` for the app; a host keeps one certificate, the latest trusted. */
-export async function trustCert(id: string, cert: TrustedCert): Promise<MyApp> {
-  const file = await load();
+/** The web app with this id; programs have no certificates. */
+function findWebApp(file: AppsFile, id: string): WebApp {
   const found = file.apps.find((item) => item.id === id);
   if (!found) throw new AppNotFoundError(id);
-  found.trustedCerts = [...found.trustedCerts.filter((item) => item.host !== cert.host), cert];
-  await persist(file);
-  return copy(found);
+  if (found.kind !== "web") throw new InvalidRequestError("Not a web app");
+  return found;
 }
 
-export async function clearTrustedCerts(id: string): Promise<MyApp> {
+/** Trusts `cert` for the app; a host keeps one certificate, the latest trusted. */
+export async function trustCert(id: string, cert: TrustedCert): Promise<WebApp> {
   const file = await load();
-  const found = file.apps.find((item) => item.id === id);
-  if (!found) throw new AppNotFoundError(id);
+  const found = findWebApp(file, id);
+  found.trustedCerts = [...found.trustedCerts.filter((item) => item.host !== cert.host), cert];
+  await persist(file);
+  return { ...found, trustedCerts: [...found.trustedCerts] };
+}
+
+export async function clearTrustedCerts(id: string): Promise<WebApp> {
+  const file = await load();
+  const found = findWebApp(file, id);
   found.trustedCerts = [];
   await persist(file);
-  return copy(found);
+  return { ...found, trustedCerts: [] };
 }

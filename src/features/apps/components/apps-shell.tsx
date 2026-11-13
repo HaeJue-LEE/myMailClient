@@ -89,8 +89,12 @@ function AppsSidebar() {
                     >
                       <AppTile app={app} className="size-5 text-[10px]" />
                       <span className="min-w-0 flex-1 truncate">{app.name}</span>
-                      {app.openIn !== "embed" && (
-                        <Icon name={app.openIn === "window" ? "popOut" : "globe"} className="opacity-50" />
+                      {app.kind === "program" ? (
+                        <Icon name="program" className="opacity-50" />
+                      ) : (
+                        app.openIn !== "embed" && (
+                          <Icon name={app.openIn === "window" ? "popOut" : "globe"} className="opacity-50" />
+                        )
                       )}
                     </AppLink>
                   </li>

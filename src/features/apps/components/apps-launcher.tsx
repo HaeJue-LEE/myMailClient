@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useApps } from "@/features/apps/api";
-import { appHost, groupApps, OPEN_MODE_LABELS } from "@/features/apps/apps";
+import { appTarget, groupApps, openLabel } from "@/features/apps/apps";
 import { AppLink } from "@/features/apps/components/app-link";
 import { AppTile } from "@/features/apps/components/app-tile";
 import { appEditHref, APPS_SETTINGS_HREF } from "@/features/apps/routes";
@@ -56,8 +56,8 @@ export function AppsLauncher() {
                       <AppTile app={app} className="size-10 text-lg" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{app.name}</span>
-                        <span className="block truncate text-xs opacity-60">{appHost(app)}</span>
-                        <span className="block text-[11px] opacity-50">{OPEN_MODE_LABELS[app.openIn]} 열기</span>
+                        <span className="block truncate text-xs opacity-60">{appTarget(app)}</span>
+                        <span className="block text-[11px] opacity-50">{openLabel(app)}</span>
                       </span>
                     </AppLink>
                   </li>

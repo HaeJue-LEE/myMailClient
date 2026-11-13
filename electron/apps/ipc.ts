@@ -11,6 +11,7 @@ import {
 import { InvalidRequestError } from "../errors";
 import { clearAppSession, forgetDeclined } from "./contents";
 import { chooseAppIcon } from "./icons";
+import { checkProgramPath, chooseProgram, launchProgram } from "./programs";
 import {
   AppNotFoundError,
   clearTrustedCerts,
@@ -60,11 +61,17 @@ export function registerAppsHandlers(options: {
     saveApp: {
       input: myAppInputSchema,
       run: async (input) => {
+        const before = input.id ? await getApp(input.id) : null;
+        checkProgramPath(input, before);
         const { saved, previous } = await saveApp(input);
         if (previous) {
           for (const item of options.allViews()) item.update(saved);
-          if (previous.url !== saved.url) closeSiteWindow(saved.id);
-          else updateSiteWindow(saved, options.icon);
+          if (previous.kind === "web") {
+            if (saved.kind === "web" && saved.url === previous.url) updateSiteWindow(saved, options.icon);
+            else closeSiteWindow(saved.id);
+            // No longer a web app: what it kept (its sign-in, cache) goes.
+            if (saved.kind !== "web") await clearAppSession(saved.id);
+          }
         }
         return saved;
       },
@@ -72,10 +79,13 @@ export function registerAppsHandlers(options: {
     removeApp: {
       input: z.object({ id }),
       run: async ({ id: appId }) => {
+        const item = await getApp(appId);
         await removeApp(appId);
-        for (const item of options.allViews()) item.close(appId);
-        closeSiteWindow(appId);
-        await clearAppSession(appId);
+        if (item.kind === "web") {
+          for (const views of options.allViews()) views.close(appId);
+          closeSiteWindow(appId);
+          await clearAppSession(appId);
+        }
         return null;
       },
     },
@@ -93,10 +103,20 @@ export function registerAppsHandlers(options: {
         icon: await chooseAppIcon(BrowserWindow.fromWebContents(event.sender)),
       }),
     },
+    chooseProgram: {
+      input: noInput,
+      run: async (_input, event) => ({
+        program: await chooseProgram(BrowserWindow.fromWebContents(event.sender)),
+      }),
+    },
     openApp: {
       input: z.object({ id, mode: z.enum(["window", "browser"]).optional() }),
-      run: async ({ id: appId, mode }) => {
+      run: async ({ id: appId, mode }, event) => {
         const item = await getApp(appId);
+        if (item.kind === "program") {
+          await launchProgram(item, BrowserWindow.fromWebContents(event.sender));
+          return null;
+        }
         const how = mode ?? item.openIn;
         forgetDeclined(appId);
         if (how === "browser") await shell.openExternal(item.url);
@@ -111,6 +131,7 @@ export function registerAppsHandlers(options: {
         const target = views(event);
         const { ticket } = target;
         const item = await getApp(appId);
+        if (item.kind !== "web") throw new InvalidRequestError("Programs are run with openApp");
         return target.show(item, rect, ticket);
       },
     },

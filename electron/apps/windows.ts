@@ -1,5 +1,5 @@
 import { BrowserWindow, nativeImage, type NativeImage } from "electron";
-import type { MyApp } from "@/features/apps/apps";
+import type { WebApp } from "@/features/apps/apps";
 import { initialBounds, rememberBounds } from "../window-state";
 import { appWebPreferences, forgetDeclined, wireAppContents } from "./contents";
 
@@ -13,11 +13,11 @@ const siteWindows = new Map<string, BrowserWindow>();
 const ERR_ABORTED = -3;
 
 /** The app's own picture for its window and taskbar button, else the app's icon. */
-function windowIcon(item: MyApp, fallback: string): NativeImage | string {
+function windowIcon(item: WebApp, fallback: string): NativeImage | string {
   return item.icon ? nativeImage.createFromDataURL(item.icon) : fallback;
 }
 
-export function openSiteWindow(item: MyApp, icon: string) {
+export function openSiteWindow(item: WebApp, icon: string) {
   const existing = siteWindows.get(item.id);
   if (existing && !existing.isDestroyed()) {
     if (existing.isMinimized()) existing.restore();
@@ -67,7 +67,7 @@ export function openSiteWindow(item: MyApp, icon: string) {
 }
 
 /** Shows a changed app's picture on its open window. */
-export function updateSiteWindow(item: MyApp, icon: string) {
+export function updateSiteWindow(item: WebApp, icon: string) {
   const window = siteWindows.get(item.id);
   if (window && !window.isDestroyed()) window.setIcon(windowIcon(item, icon));
 }

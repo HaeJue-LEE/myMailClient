@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useApps, useClearTrustedCerts, useRemoveApp, useReorderApps } from "@/features/apps/api";
-import { appHost, groupSuggestions, type MyApp, OPEN_MODE_LABELS } from "@/features/apps/apps";
+import { appTarget, groupSuggestions, type MyApp, openLabel } from "@/features/apps/apps";
 import { AppForm } from "@/features/apps/components/app-form";
 import { AppTile } from "@/features/apps/components/app-tile";
 import { appEditHref, APPS_SETTINGS_HREF } from "@/features/apps/routes";
@@ -158,10 +158,11 @@ function AppRow({
             {app.group && <span className="ml-2 text-xs font-normal opacity-60">{app.group}</span>}
           </p>
           <p className="truncate text-xs opacity-60">
-            {appHost(app)} · {OPEN_MODE_LABELS[app.openIn]} 열기{app.pinned ? " · 레일에 고정" : ""}
-            {app.openIn === "embed" && app.hideAddressBar ? " · 주소 표시줄 숨김" : ""}
+            {appTarget(app)} · {openLabel(app)}
+            {app.pinned ? " · 레일에 고정" : ""}
+            {app.kind === "web" && app.openIn === "embed" && app.hideAddressBar ? " · 주소 표시줄 숨김" : ""}
           </p>
-          {app.trustedCerts.length > 0 && (
+          {app.kind === "web" && app.trustedCerts.length > 0 && (
             <p className="text-xs opacity-60">
               신뢰한 인증서 {app.trustedCerts.length}개{" "}
               <button

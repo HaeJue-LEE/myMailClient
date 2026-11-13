@@ -93,6 +93,13 @@ export function useOpenApp() {
   });
 }
 
+/** Asks for a program to run; resolves to it (path, suggested name, icon), or null when cancelled. */
+export function useChooseProgram() {
+  return useMutation({
+    mutationFn: async () => (await unwrapApps(appsBridge().chooseProgram())).program,
+  });
+}
+
 /** Asks for an image file; resolves to the icon to show and save, or null when cancelled. */
 export function useChooseAppIcon() {
   return useMutation({

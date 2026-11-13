@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { appsBridge, unwrapApps, useApps, useOpenApp, useSaveApp } from "@/features/apps/api";
-import { type MyApp, OPEN_MODE_LABELS } from "@/features/apps/apps";
+import { fileNameOf, OPEN_MODE_LABELS, type WebApp } from "@/features/apps/apps";
 import type { AppViewState, ViewAction, ViewBounds } from "@/features/apps/bridge";
 import { AppTile } from "@/features/apps/components/app-tile";
 import { appEditHref, APPS_HREF } from "@/features/apps/routes";
@@ -31,22 +31,28 @@ export function AppView() {
       </div>
     );
   }
-  if (app.openIn !== "embed") {
+  if (app.kind === "program" || app.openIn !== "embed") {
     return (
       <div className="space-y-3 p-6 text-sm">
-        <p>
-          <b>{app.name}</b>은(는) {OPEN_MODE_LABELS[app.openIn]} 열도록 설정되어 있습니다.
-        </p>
+        {app.kind === "program" ? (
+          <p>
+            <b>{app.name}</b>은(는) 이 PC의 프로그램입니다 ({fileNameOf(app.path)}).
+          </p>
+        ) : (
+          <p>
+            <b>{app.name}</b>은(는) {OPEN_MODE_LABELS[app.openIn]} 열도록 설정되어 있습니다.
+          </p>
+        )}
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => openApp.mutate({ id: app.id })}
             className="rounded-md bg-foreground px-3 py-1.5 font-medium text-background"
           >
-            열기
+            {app.kind === "program" ? "실행" : "열기"}
           </button>
           <Link href={appEditHref(app.id)} className="rounded-md border border-foreground/20 px-3 py-1.5">
-            열기 방식 바꾸기
+            {app.kind === "program" ? "설정 바꾸기" : "열기 방식 바꾸기"}
           </Link>
         </div>
       </div>
@@ -66,7 +72,7 @@ function boundsOf(element: HTMLElement): ViewBounds {
  * follows the area's size and place; it is hidden when the page leaves, and
  * while the area shows a load error instead.
  */
-function EmbeddedApp({ app }: { app: MyApp }) {
+function EmbeddedApp({ app }: { app: WebApp }) {
   const area = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<AppViewState | null>(null);
   const openApp = useOpenApp();
@@ -77,7 +83,7 @@ function EmbeddedApp({ app }: { app: MyApp }) {
   const barHidden = app.hideAddressBar && !hasFailed;
   const setBarHidden = (hidden: boolean) => {
     const { id, name, url, group, openIn, pinned } = app;
-    save.mutate({ id, name, url, group, openIn, pinned, hideAddressBar: hidden });
+    save.mutate({ kind: "web", id, name, url, group, openIn, pinned, hideAddressBar: hidden });
   };
 
   useEffect(

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WebApp } from "@/features/apps/apps";
 
 let userData = "";
 vi.mock("electron", () => ({ app: { getPath: () => userData } }));
@@ -13,11 +14,19 @@ const freshModule = async () => {
 };
 
 const nas = {
+  kind: "web" as const,
   name: "NAS",
   url: "https://nas.example.lan:5001",
   group: "NAS",
   openIn: "embed" as const,
   pinned: true,
+};
+const tool = {
+  kind: "program" as const,
+  name: "Example",
+  path: "C:\\Tools\\Example\\example.exe",
+  group: "",
+  pinned: false,
 };
 const ICON = "data:image/png;base64,iVBORw0KGgo=";
 const cert = { host: "nas.example.lan:5001", fingerprint: "sha256/AAAA" };
@@ -79,7 +88,7 @@ describe("apps store", () => {
     const trusted = await store.trustCert(a.id, cert);
     expect(store.isCertTrusted(trusted, cert)).toBe(true);
     // Not for another app, and not for another certificate on the same host.
-    expect(store.isCertTrusted(await store.getApp(b.id), cert)).toBe(false);
+    expect(store.isCertTrusted((await store.getApp(b.id)) as WebApp, cert)).toBe(false);
     expect(store.isCertTrusted(trusted, { ...cert, fingerprint: "sha256/BBBB" })).toBe(false);
 
     const replaced = await store.trustCert(a.id, { ...cert, fingerprint: "sha256/BBBB" });
@@ -97,6 +106,8 @@ describe("apps store", () => {
     );
     expect(await (await freshModule()).listApps()).toEqual([
       {
+        // Saved before programs existed: a web app.
+        kind: "web",
         id: "x",
         name: "NAS",
         url: "https://nas.example.lan/",
@@ -123,12 +134,13 @@ describe("apps store", () => {
 
   it("keeps the address bar setting unless the edit sets it", async () => {
     const store = await freshModule();
+    const web = (item: unknown) => item as WebApp;
     const { saved } = await store.saveApp(nas);
-    expect(saved.hideAddressBar).toBe(false);
+    expect(web(saved).hideAddressBar).toBe(false);
     const hidden = (await store.saveApp({ ...nas, id: saved.id, hideAddressBar: true })).saved;
-    expect(hidden.hideAddressBar).toBe(true);
-    expect((await store.saveApp({ ...nas, id: saved.id, name: "우리집 NAS" })).saved.hideAddressBar).toBe(true);
-    expect((await (await freshModule()).getApp(saved.id)).hideAddressBar).toBe(true);
+    expect(web(hidden).hideAddressBar).toBe(true);
+    expect(web((await store.saveApp({ ...nas, id: saved.id, name: "우리집 NAS" })).saved).hideAddressBar).toBe(true);
+    expect(web(await (await freshModule()).getApp(saved.id)).hideAddressBar).toBe(true);
   });
 
   it("drops a damaged icon in the file, keeping the app", async () => {
@@ -137,5 +149,43 @@ describe("apps store", () => {
       JSON.stringify({ apps: [{ id: "x", name: "NAS", url: "https://nas.example.lan/", icon: "javascript:1" }] }),
     );
     expect(await (await freshModule()).listApps()).toMatchObject([{ id: "x", icon: null }]);
+  });
+
+  it("saves a program, and drops what the other kind kept when an app changes kind", async () => {
+    const store = await freshModule();
+    const { saved: web } = await store.saveApp({ ...nas, hideAddressBar: true });
+    await store.trustCert(web.id, cert);
+
+    const { saved: program } = await store.saveApp({ ...tool, id: web.id, icon: ICON });
+    expect(program).toEqual({ id: web.id, ...tool, icon: ICON });
+    expect(await (await freshModule()).getApp(web.id)).toEqual(program);
+    // Programs have no certificates.
+    await expect(store.trustCert(web.id, cert)).rejects.toThrow();
+
+    // Back to a web app: starts afresh, but keeps the picture.
+    const again = (await store.saveApp({ ...nas, id: web.id })).saved as WebApp;
+    expect(again).toMatchObject({ kind: "web", hideAddressBar: false, trustedCerts: [], icon: ICON });
+    expect(again).not.toHaveProperty("path");
+  });
+
+  it("refuses a program path that is not a full path to a program", async () => {
+    const store = await freshModule();
+    for (const bad of ["example.exe", "C:\\Tools\\notes.txt", "C:\\Tools\\run.exe\nC:\\x.exe", ""]) {
+      await expect(store.saveApp({ ...tool, path: bad })).rejects.toThrow();
+    }
+  });
+
+  it("leaves out an app it cannot read, keeping the others", async () => {
+    await writeFile(
+      path.join(userData, "apps.json"),
+      JSON.stringify({
+        apps: [
+          { kind: "program", id: "bad", name: "Bad", path: "notes.txt" },
+          { kind: "program", id: "ok", name: "Tool", path: tool.path },
+          { id: "web", name: "NAS", url: "https://nas.example.lan/" },
+        ],
+      }),
+    );
+    expect((await (await freshModule()).listApps()).map((item) => item.id)).toEqual(["ok", "web"]);
   });
 });
