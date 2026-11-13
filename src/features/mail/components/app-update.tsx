@@ -5,6 +5,7 @@ import {
   useCancelUpdateDownload,
   useCheckForUpdate,
   useDownloadUpdate,
+  useOpenUpdatePage,
   useRestartToUpdate,
   useUpdateStatus,
 } from "@/features/mail/api";
@@ -55,6 +56,44 @@ function Notes({ notes }: { notes?: string }) {
 }
 
 /**
+ * The Mac app's offer: the release page opens in the browser, where the dmg
+ * for this Mac is downloaded and the app in Applications replaced by hand.
+ */
+function ByHandOffer({ status, later }: { status: UpdateStatus; later: React.ReactNode }) {
+  const open = useOpenUpdatePage();
+  return (
+    <div className="space-y-2">
+      <p className="text-sm">
+        새 버전 <b>{status.version}</b>이(가) 있습니다. 다운로드 페이지에서{" "}
+        <b className="break-all">{status.file}</b>
+        {status.total ? ` (${megabytes(status.total)})` : ""}을(를) 받아 응용 프로그램 폴더의 Mail
+        Client를 바꿔 주세요.
+      </p>
+      <p className="text-xs opacity-70">
+        바꾼 뒤 처음 열 때는 처음 설치할 때처럼 터미널에서 허용 명령을 한 번 실행해야 할 수 있습니다.
+      </p>
+      <Notes notes={status.notes} />
+      {(open.isError || open.data === false) && (
+        <p role="alert" className="text-xs text-red-600">
+          페이지를 열지 못했습니다. 업데이트를 다시 확인해 주세요.
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={open.isPending}
+          onClick={() => open.mutate()}
+          className={PRIMARY}
+        >
+          다운로드 페이지 열기
+        </button>
+        {later}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The buttons and progress for where updating stands: asked before
  * downloading, progress while it runs, asked again before restarting.
  * `onLater` hides the asking (the prompt); without it no "later" is offered.
@@ -72,6 +111,7 @@ function UpdateSteps({ status, onLater }: { status: UpdateStatus; onLater?: () =
 
   switch (status.state) {
     case "available":
+      if (status.byHand) return <ByHandOffer status={status} later={later} />;
       return (
         <div className="space-y-2">
           <p className="text-sm">
@@ -203,14 +243,17 @@ export function AppUpdate() {
         <p className="text-xs opacity-70">
           {status.reason === "local"
             ? "이 PC용 빌드(-local)는 자동으로 업데이트하지 않습니다. 새 버전은 npm run dist로 다시 만들어 주세요."
-            : status.reason === "mac"
-              ? "맥용 앱은 자동으로 업데이트하지 않습니다. 새 버전은 새로 받아 응용 프로그램 폴더의 앱을 바꿔 주세요."
-              : "설치한 실행 파일(MailClient-<버전>.exe)로 실행하지 않아 업데이트를 확인하지 않습니다."}
+            : "설치한 실행 파일(MailClient-<버전>.exe)로 실행하지 않아 업데이트를 확인하지 않습니다."}
         </p>
       )}
       {status.state === "latest" && <p className="text-xs opacity-70">최신 버전입니다.</p>}
       {status.state === "idle" && (
         <p className="text-xs opacity-70">새 버전은 앱을 시작할 때 GitHub에서 확인합니다.</p>
+      )}
+      {status.byHand && (status.state === "idle" || status.state === "latest") && (
+        <p className="text-xs opacity-70">
+          맥용 앱은 스스로 바뀌지 않습니다. 새 버전이 있으면 다운로드 페이지를 열어 드립니다.
+        </p>
       )}
       <UpdateSteps status={status} />
     </section>
@@ -269,6 +312,7 @@ export function UpdatePrompt({ showVersion = false }: {
 export function UpdateNotice() {
   const { data: status } = useUpdateStatus();
   const download = useDownloadUpdate();
+  const openPage = useOpenUpdatePage();
   const restart = useRestartToUpdate();
   if (!status) return null;
 
@@ -277,14 +321,26 @@ export function UpdateNotice() {
       {status.state === "available" && (
         <div className="flex items-center gap-2">
           <p className="flex-1">새 버전 {status.version} 있음</p>
-          <button
-            type="button"
-            disabled={download.isPending}
-            onClick={() => download.mutate()}
-            className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
-          >
-            업데이트
-          </button>
+          {status.byHand ? (
+            <button
+              type="button"
+              disabled={openPage.isPending}
+              onClick={() => openPage.mutate()}
+              title="다운로드 페이지를 브라우저에서 엽니다."
+              className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
+            >
+              받기
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={download.isPending}
+              onClick={() => download.mutate()}
+              className="rounded-md bg-foreground px-2 py-1 font-medium text-background disabled:opacity-50"
+            >
+              업데이트
+            </button>
+          )}
         </div>
       )}
       {status.state === "downloading" && (

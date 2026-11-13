@@ -129,7 +129,14 @@ export type UpdateStatus = {
     | "downloading"
     | "ready"
     | "error";
-  reason?: "dev" | "local" | "mac";
+  reason?: "dev" | "local";
+  /**
+   * The Mac app: a later release is only offered, and installed by hand
+   * from its page (`openUpdatePage`); there is no download or restart.
+   */
+  byHand?: boolean;
+  /** With `byHand`: the dmg for this Mac, to download from the release page. */
+  file?: string;
   /** The release found (available, downloading, ready, or failed to download). */
   version?: string;
   received?: number;
@@ -190,6 +197,8 @@ export type MailMethods = {
   /** Downloads the release offered, in the background; the status shows the progress. */
   downloadUpdate: () => UpdateStatus;
   cancelUpdateDownload: () => UpdateStatus;
+  /** The Mac app: opens the page of the release offered, in the browser; false when none is. */
+  openUpdatePage: () => boolean;
   /** Installs the downloaded update: the app quits and starts again as the new version. */
   restartToUpdate: () => null;
   /** Creates or removes the desktop or Start menu shortcut to the launcher. */
@@ -343,6 +352,7 @@ export const MAIL_METHODS = [
   "checkForUpdate",
   "downloadUpdate",
   "cancelUpdateDownload",
+  "openUpdatePage",
   "restartToUpdate",
   "setShortcut",
   "getAccount",

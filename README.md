@@ -91,26 +91,36 @@ Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로
 
 ## 맥(macOS)
 
-맥용 앱은 GitHub Actions의 macOS 빌드 서버에서 만듭니다. Mac이 없어도 됩니다.
+맥용 앱은 GitHub Actions의 macOS 빌드 서버에서 만듭니다(`.github/workflows/mac.yml`). Mac이 없어도 됩니다.
 
-1. GitHub 저장소의 **Actions → Mac app → Run workflow**를 누릅니다.
-2. 끝나면(약 15분) 실행 결과 아래 **Artifacts**의 `mac-app`을 내려받아 압축을 풉니다.
-   M1 이후 Mac(Apple 메뉴 → 이 Mac에 관하여에서 칩이 'Apple M…')은 `-mac-arm64.dmg`, Intel Mac은 `-mac-x64.dmg`입니다.
+- **릴리스할 때**: 릴리스를 게시하면 몇 분 뒤 `MailClient-<버전>-mac-arm64.dmg`(M1 이후)와 `-mac-x64.dmg`(Intel)가 그 릴리스에 자동으로 붙습니다.
+  릴리스 태그와 `package.json`의 버전이 같아야 합니다.
+- **시험 빌드**: **Actions → Mac app → Run workflow**를 누르면 dmg가 실행 결과의 **Artifacts**(`mac-app`)로만 나옵니다(GitHub 로그인 필요).
 
 Mac에서 설치하기:
 
-1. dmg를 열고 **Mail Client**를 **Applications**(응용 프로그램) 폴더로 끌어 놓습니다.
-2. 처음 열면 Apple 개발자 서명이 없어 "확인할 수 없음" 경고가 나옵니다. **완료**를 누른 뒤
-   **시스템 설정 → 개인정보 보호 및 보안**의 아래쪽에서 Mail Client의 **그래도 열기**를 누릅니다.
-   "손상되었기 때문에 열 수 없습니다"가 나오면 터미널에서 다음을 실행한 뒤 다시 엽니다.
+1. [최신 릴리스](https://github.com/HaeJue-LEE/myMailClient/releases/latest)에서 내 Mac에 맞는 dmg를 받습니다.
+   Apple 메뉴 → 이 Mac에 관하여에서 칩이 'Apple M…'이면 `-mac-arm64.dmg`, Intel이면 `-mac-x64.dmg`입니다.
+2. dmg를 열고 **Mail Client**를 **Applications**(응용 프로그램) 폴더로 끌어 놓습니다.
+3. Apple 개발자 서명이 없어 그냥은 열리지 않습니다. 터미널에서 다음을 실행한 뒤 응용 프로그램 폴더에서 엽니다.
    ```
    xattr -dr com.apple.quarantine "/Applications/Mail Client.app"
    ```
-3. 계정을 처음 저장할 때 키체인 접근을 물으면 **항상 허용**을 누릅니다(비밀번호를 키체인으로 암호화합니다).
+   (경고 창에 따라 **시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기**로 열리는 경우도 있습니다.)
+4. 계정을 처음 저장할 때 키체인 접근을 물으면 **항상 허용**을 누릅니다(비밀번호를 키체인으로 암호화합니다).
    새 버전으로 바꾼 뒤에는 한 번 더 물을 수 있습니다.
 
+새 버전:
+
+- 앱을 시작할 때 GitHub의 최신 릴리스를 확인하고, 내 Mac용 dmg가 붙은 새 버전이 있으면 알려 줍니다.
+  **다운로드 페이지 열기**를 누르면 브라우저에서 릴리스 페이지가 열립니다.
+- 받은 dmg로 위 2~3단계를 다시 합니다(같은 이름의 앱을 **대치**). 계정과 설정은 그대로 남습니다.
+- 맥용 앱은 서명이 없어 스스로 바뀌지 않습니다. Windows처럼 받아서 다시 시작하는 자동 업데이트는 없습니다.
+
+그 밖에:
+
 - Google 키가 들어 있지 않습니다. Google 로그인(Gmail API)을 쓰려면 **메일 계정 추가 → Gmail (Google 로그인)**에 직접 만든 클라이언트 ID와 시크릿을 넣습니다(위 **준비** 참고). 앱 비밀번호로 IMAP 계정으로 추가해도 됩니다.
-- 자동 업데이트·바로 가기·MyApps의 프로그램 실행은 Windows 전용입니다. 새 버전은 같은 방법으로 받아 앱을 바꿉니다.
+- 바로 가기와 MyApps의 프로그램 실행은 Windows 전용입니다.
 - 설정과 계정은 `~/Library/Application Support/Mail Client`에 저장됩니다. Windows에서 쓰던 계정 파일은 옮겨도 열리지 않습니다.
 
 ## 구조

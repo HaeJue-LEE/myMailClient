@@ -87,6 +87,7 @@ import {
   checkForUpdate,
   downloadUpdate,
   getUpdateStatus,
+  openUpdatePage,
   restartToUpdate,
 } from "./updater";
 import { revokeZoho, signInZoho } from "./zoho/auth";
@@ -225,6 +226,10 @@ export function registerMailHandlers(options: {
     cancelUpdateDownload: {
       input: noInput,
       run: async () => cancelUpdateDownload(),
+    },
+    openUpdatePage: {
+      input: noInput,
+      run: async () => openUpdatePage(),
     },
     restartToUpdate: {
       input: noInput,

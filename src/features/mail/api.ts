@@ -179,6 +179,11 @@ export function useCancelUpdateDownload() {
   });
 }
 
+/** The Mac app: opens the offered release's page in the browser, to download it there. */
+export function useOpenUpdatePage() {
+  return useMutation({ mutationFn: () => unwrap(bridge().openUpdatePage()) });
+}
+
 /** Quits and starts again as the downloaded version. */
 export function useRestartToUpdate() {
   return useMutation({ mutationFn: () => unwrap(bridge().restartToUpdate()) });

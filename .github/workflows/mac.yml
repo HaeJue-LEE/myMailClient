@@ -1,9 +1,14 @@
-# The Mac app, built on GitHub's macOS runner: Actions → "Mac app" →
-# "Run workflow". The dmgs come out as the run's artifact "mac-app".
+# The Mac app, built on GitHub's macOS runner.
+# - When a release is published: built from its tag, and the dmgs are attached
+#   to the release, where installed Mac apps find them (see electron/updater.ts).
+# - By hand: Actions → "Mac app" → "Run workflow". The dmgs come out as the
+#   run's artifact "mac-app" only.
 # Built without the Google OAuth client (no secrets are used here).
 name: Mac app
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -13,13 +18,32 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 45
+    permissions:
+      # Attaching the dmgs to the release.
+      contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The write token stays out of .git/config while npm runs install scripts.
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
+
+      # The dmgs are named after package.json's version; for a release it must
+      # be the tag's, or installed apps would never see them.
+      - name: Check the version matches the release
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$TAG" ]; then
+            echo "package.json is $version but the release is $TAG"
+            exit 1
+          fi
 
       - run: npm ci
 
@@ -49,7 +73,15 @@ jobs:
             exit 1
           fi
 
+      - name: Attach the dmgs to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" release/MailClient-*-mac-*.dmg --clobber --repo "$GITHUB_REPOSITORY"
+
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: mac-app
           path: release/MailClient-*-mac-*.dmg

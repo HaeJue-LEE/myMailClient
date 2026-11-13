@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, shell } from "electron";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createWriteStream, renameSync, rmSync } from "node:fs";
@@ -10,7 +10,14 @@ import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import type { UpdateStatus } from "@/features/mail/bridge";
 import { getGoogleClient } from "./google-client";
 import { launcherPath } from "./shortcuts";
-import { checkPackageTrailer, type ReleaseExe, releaseExe, TRAILER_BYTES } from "./update-check";
+import {
+  checkPackageTrailer,
+  type ReleaseExe,
+  releaseExe,
+  type ReleasePage,
+  releasePage,
+  TRAILER_BYTES,
+} from "./update-check";
 
 /**
  * Updates from GitHub releases, for copies started through the launcher
@@ -24,7 +31,15 @@ import { checkPackageTrailer, type ReleaseExe, releaseExe, TRAILER_BYTES } from 
  * Not offered when there is no launcher (`npm run dev`, the unpacked folder),
  * nor for builds with a built-in Google client (`npm run dist`): the public
  * exe would take that client, and the sign-in made with it, away.
+ *
+ * The Mac app is a plain .app bundle without the launcher, and not signed by
+ * Apple, so it cannot replace itself. It only says when a later release has
+ * a dmg for this Mac, and opens that release's page (`byHand`); the user
+ * downloads it and replaces the app in Applications.
  */
+
+/** Updates are installed by hand from the release page (the Mac app). */
+const BY_HAND = process.platform === "darwin";
 
 /** Replaced at build time; empty except in builds made to test the updater. */
 const FEED_OVERRIDE = process.env.MAIL_CLIENT_UPDATE_FEED ?? "";
@@ -38,24 +53,29 @@ const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 /** Generic: the request says nothing about the user. */
 const USER_AGENT = "myMailClient-updater";
 
-let status: UpdateStatus = { state: "idle", currentVersion: app.getVersion() };
+let status: UpdateStatus = {
+  state: "idle",
+  currentVersion: app.getVersion(),
+  ...(BY_HAND ? { byHand: true } : {}),
+};
 /** The later release found, offered until the user downloads it. */
 let found: ReleaseExe | null = null;
+/** The Mac app's later release, whose page is opened to download it. */
+let foundPage: ReleasePage | null = null;
 let checking = false;
 let downloading: AbortController | null = null;
 let staged: { version: string; file: string; launcher: string } | null = null;
 let applied = false;
 
-const set = (next: Omit<UpdateStatus, "currentVersion">) => {
-  status = { ...next, currentVersion: app.getVersion() };
+const set = (next: Omit<UpdateStatus, "currentVersion" | "byHand">) => {
+  status = { ...next, currentVersion: app.getVersion(), ...(BY_HAND ? { byHand: true } : {}) };
 };
 
 const offer = (exe: ReleaseExe) =>
   set({ state: "available", version: exe.version, total: exe.size, notes: exe.notes });
 
-async function unsupportedReason(): Promise<"dev" | "local" | "mac" | null> {
-  // The Mac app is a plain .app bundle, without the launcher that updates.
-  if (app.isPackaged && process.platform === "darwin") return "mac";
+async function unsupportedReason(): Promise<"dev" | "local" | null> {
+  if (BY_HAND) return app.isPackaged ? null : "dev";
   if (!app.isPackaged || !launcherPath()) return "dev";
   if ((await getGoogleClient()).source === "built-in") return "local";
   return null;
@@ -156,6 +176,14 @@ export async function checkForUpdate({ manual }: { manual: boolean }): Promise<U
       else status = before;
       return status;
     }
+    if (BY_HAND) {
+      foundPage = releasePage((release ?? {}) as Parameters<typeof releasePage>[0], app.getVersion(), process.arch);
+      if (foundPage) {
+        const { version, file, size, notes } = foundPage;
+        set({ state: "available", version, file, total: size, notes });
+      } else set({ state: "latest", checkedAt: Date.now() });
+      return status;
+    }
     const exe = releaseExe(
       (release ?? {}) as Parameters<typeof releaseExe>[0],
       app.getVersion(),
@@ -196,6 +224,16 @@ export function downloadUpdate(): UpdateStatus {
     });
   set({ state: "downloading", version: exe.version, received: 0, total: exe.size, notes: exe.notes });
   return status;
+}
+
+/**
+ * Opens the page of the release offered to the Mac app, in the browser.
+ * Only that page: the address comes from the release, never from the screen.
+ */
+export function openUpdatePage(): boolean {
+  if (!foundPage) return false;
+  void shell.openExternal(foundPage.page);
+  return true;
 }
 
 export function cancelUpdateDownload(): UpdateStatus {
