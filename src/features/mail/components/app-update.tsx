@@ -22,6 +22,23 @@ const percent = (status: UpdateStatus) =>
 
 const megabytes = (bytes = 0) => `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 
+const timeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" });
+
+/** Why a check or download failed, in words. */
+function failureText(status: UpdateStatus) {
+  if (status.error === "download") {
+    return `새 버전 ${status.version ?? ""}을(를) 받지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.`;
+  }
+  if (status.error === "rate_limited") {
+    const when = status.retryAt ? `${timeFormat.format(status.retryAt)} 이후에` : "잠시 뒤에";
+    return (
+      "GitHub 확인 횟수 한도(같은 인터넷 연결에서 1시간에 60번)에 걸려 확인하지 못했습니다. " +
+      `${when} 다시 확인해 주세요.`
+    );
+  }
+  return "업데이트를 확인하지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.";
+}
+
 /** Progress of a download as a bar and "12.3MB / 142.9MB (8%)". */
 function Progress({ status }: { status: UpdateStatus }) {
   return (
@@ -230,9 +247,7 @@ function UpdateSteps({ status, onLater }: { status: UpdateStatus; onLater?: () =
       return (
         <div className="space-y-2">
           <p role="alert" className="text-sm text-red-600">
-            {status.error === "download"
-              ? `새 버전 ${status.version ?? ""}을(를) 받지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.`
-              : "업데이트를 확인하지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요."}
+            {failureText(status)}
           </p>
           <div className="flex flex-wrap gap-2">
             {status.error === "download" ? (

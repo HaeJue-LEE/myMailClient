@@ -21,6 +21,25 @@ export function isNewer(candidate: string, current: string) {
   return false;
 }
 
+/**
+ * When GitHub refused the release check for its rate limit (60 requests an
+ * hour without signing in, counted per internet address, so shared with other
+ * programs on the same network): when it may be asked again (ms since the
+ * epoch, or null when GitHub did not say). Null for any other answer.
+ */
+export function rateLimitedUntil(
+  status: number,
+  headers: { get: (name: string) => string | null },
+): { retryAt: number | null } | null {
+  const remaining = headers.get("x-ratelimit-remaining");
+  if (status !== 429 && !(status === 403 && remaining === "0")) return null;
+  const reset = Number(headers.get("x-ratelimit-reset"));
+  if (Number.isSafeInteger(reset) && reset > 0) return { retryAt: reset * 1000 };
+  const after = Number(headers.get("retry-after"));
+  if (Number.isFinite(after) && after > 0) return { retryAt: Date.now() + after * 1000 };
+  return { retryAt: null };
+}
+
 /** The fields of GitHub's release JSON (`releases/latest`) the updater reads. */
 export type GithubRelease = {
   tag_name?: unknown;

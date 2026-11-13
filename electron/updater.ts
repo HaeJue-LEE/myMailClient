@@ -13,6 +13,7 @@ import { numberedName } from "./open-attachment";
 import { launcherPath } from "./shortcuts";
 import {
   checkPackageTrailer,
+  rateLimitedUntil,
   type ReleaseDmg,
   releaseDmg,
   type ReleaseExe,
@@ -205,11 +206,17 @@ export async function checkForUpdate({ manual }: { manual: boolean }): Promise<U
         headers: { Accept: "application/vnd.github+json", "User-Agent": USER_AGENT },
         signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
       });
-      if (!response.ok) throw new Error(`feed ${response.status}`);
+      if (!response.ok) {
+        const limited = rateLimitedUntil(response.status, response.headers);
+        throw Object.assign(new Error(`feed ${response.status}`), { limited });
+      }
       release = await response.json();
     } catch (error) {
       console.warn("[update] check failed", (error as Error).message);
-      if (manual) set({ state: "error", error: "check" });
+      const { limited } = error as { limited?: { retryAt: number | null } | null };
+      if (manual && limited) {
+        set({ state: "error", error: "rate_limited", ...(limited.retryAt ? { retryAt: limited.retryAt } : {}) });
+      } else if (manual) set({ state: "error", error: "check" });
       // Tried: the screen stops asking every few seconds for a result.
       else if (before.state === "idle") set({ state: "idle", checkedAt: Date.now() });
       else status = before;

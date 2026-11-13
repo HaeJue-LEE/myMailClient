@@ -3,6 +3,7 @@ import {
   checkPackageTrailer,
   isNewer,
   parseVersion,
+  rateLimitedUntil,
   releaseExe,
   releaseDmg,
   TRAILER_BYTES,
@@ -153,5 +154,22 @@ describe("releaseDmg", () => {
     expect(
       releaseDmg(macRelease({ html_url: "https://github.com/someone-else/myMailClient/releases/tag/v0.1.7" }), "0.1.6", "arm64"),
     ).toBeNull();
+  });
+});
+
+describe("rateLimitedUntil", () => {
+  const headers = (values: Record<string, string>) => ({ get: (name: string) => values[name] ?? null });
+
+  it("reads GitHub's hourly limit and when it resets", () => {
+    expect(rateLimitedUntil(403, headers({ "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1794591284" }))).toEqual({
+      retryAt: 1794591284000,
+    });
+    expect(rateLimitedUntil(429, headers({}))).toEqual({ retryAt: null });
+  });
+
+  it("leaves other refusals alone", () => {
+    expect(rateLimitedUntil(403, headers({ "x-ratelimit-remaining": "12" }))).toBeNull();
+    expect(rateLimitedUntil(404, headers({}))).toBeNull();
+    expect(rateLimitedUntil(500, headers({ "x-ratelimit-remaining": "0" }))).toBeNull();
   });
 });

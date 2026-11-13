@@ -145,7 +145,10 @@ export type UpdateStatus = {
   /** The release's notes (Markdown, untrusted: shown as text only). */
   notes?: string;
   checkedAt?: number;
-  error?: "check" | "download";
+  /** `rate_limited`: GitHub refused the check for its hourly limit (see `retryAt`). */
+  error?: "check" | "download" | "rate_limited";
+  /** With `rate_limited`: when GitHub may be asked again (ms since the epoch), when it said. */
+  retryAt?: number;
 };
 
 /** What the app can do as set up now. */
