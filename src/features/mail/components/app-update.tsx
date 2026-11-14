@@ -310,9 +310,7 @@ export function AppUpdate() {
       </div>
       {status.state === "unsupported" && (
         <p className="text-xs opacity-70">
-          {status.reason === "local"
-            ? "이 PC용 빌드(-local)는 자동으로 업데이트하지 않습니다. 새 버전은 npm run dist로 다시 만들어 주세요."
-            : "설치한 실행 파일(MailClient-<버전>.exe)로 실행하지 않아 업데이트를 확인하지 않습니다."}
+          {"설치한 실행 파일(MailClient-<버전>.exe)로 실행하지 않아 업데이트를 확인하지 않습니다."}
         </p>
       )}
       {status.state === "latest" && <p className="text-xs opacity-70">최신 버전입니다.</p>}

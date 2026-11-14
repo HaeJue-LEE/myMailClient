@@ -1,38 +1,18 @@
-// Dev runner for the Electron side: rebuilds electron/ on save (and when
-// .env.local changes) and restarts the app so main/preload changes apply.
+// Dev runner for the Electron side: rebuilds electron/ on save and restarts
+// the app so main/preload changes apply.
 // Closing the app window ends `npm run dev`, as before.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  unwatchFile,
-  watchFile,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { parseEnv } from "node:util";
 import electronPath from "electron";
 import { context } from "esbuild";
-import {
-  electronBuildOptions,
-  NO_OAUTH_CLIENT_NOTICE,
-  oauthClientFrom,
-} from "./electron-build-options.mjs";
+import { electronBuildOptions } from "./electron-build-options.mjs";
 
-const ENV_FILE = ".env.local";
 /** main and preload often rebuild together (shared imports): restart once. */
 const RESTART_DEBOUNCE_MS = 300;
 
 const log = (message) => console.log(`[dev-electron] ${message}`);
-
-function readOAuthClient() {
-  const file = existsSync(ENV_FILE)
-    ? parseEnv(readFileSync(ENV_FILE, "utf8"))
-    : {};
-  return oauthClientFrom({ ...process.env, ...file });
-}
 
 // --- the Electron process -------------------------------------------------
 
@@ -105,8 +85,8 @@ function emitAndRestartPlugin(outfile, expectedBundles) {
   };
 }
 
-async function watchBundles(client) {
-  const options = electronBuildOptions(client);
+async function watchBundles() {
+  const options = electronBuildOptions();
   contexts = await Promise.all(
     options.map((option) =>
       context({
@@ -127,14 +107,9 @@ async function disposeBundles() {
 
 // --- lifecycle ------------------------------------------------------------
 
-/** Null builds the app without Google sign-in. */
-let client = readOAuthClient();
-if (!client) log(NO_OAUTH_CLIENT_NOTICE);
-
 async function stop(code) {
   stopping = true;
   clearTimeout(restartTimer);
-  unwatchFile(ENV_FILE);
   app?.kill();
   await disposeBundles();
   process.exit(code);
@@ -144,20 +119,5 @@ process.on("SIGINT", () => void stop(0));
 process.on("SIGTERM", () => void stop(0));
 process.on("exit", () => app?.kill());
 
-// The OAuth client is inlined at build time, so a change needs new contexts.
-watchFile(ENV_FILE, { interval: 1000 }, async () => {
-  const next = readOAuthClient();
-  // Half-edited values keep the last good client rather than drop sign-in.
-  if (!next && client) {
-    log(`${ENV_FILE}에 Google 클라이언트 값이 없어 이전 값을 유지합니다.`);
-    return;
-  }
-  if (JSON.stringify(next) === JSON.stringify(client)) return;
-  client = next;
-  log(`${ENV_FILE} 변경 → 다시 빌드`);
-  await disposeBundles();
-  await watchBundles(client);
-});
-
-await watchBundles(client);
+await watchBundles();
 log("electron/ 감시 중 (저장하면 앱이 자동으로 재시작됩니다)");

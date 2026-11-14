@@ -2,8 +2,6 @@
 // `release/MailClient-<version>-mac-arm64.dmg` (Apple silicon, M1 and later)
 // and `release/MailClient-<version>-mac-x64.dmg` (Intel).
 //
-// - Always built without the Google OAuth client, like `npm run dist:public`:
-//   the dmg is meant to be handed out.
 // - Not signed with an Apple Developer ID, only ad hoc (Apple silicon runs
 //   nothing unsigned). macOS therefore asks once before the first start; see
 //   the README for opening it.
@@ -54,7 +52,7 @@ function makeDmg(source, output) {
 
 run("npm", ["run", "build:web"]);
 console.log("배포용 빌드: Google 클라이언트를 넣지 않습니다.");
-await Promise.all(electronBuildOptions(null).map((options) => build(options)));
+await Promise.all(electronBuildOptions().map((options) => build(options)));
 
 // macOS wants an icon of at least 512 px; the largest source is smaller, so
 // it is scaled up.

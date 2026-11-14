@@ -16,9 +16,9 @@ Gmail(Gmail API)과 네이버 등 IMAP/SMTP 메일 계정을 함께 쓰는 Windo
 
 ## 준비
 
-Google 로그인(Gmail API·Google 주소록)은 **선택 사항**입니다. 아래 설정 없이 빌드하면 Google 로그인만 빠지고,
-IMAP·POP3 계정(Gmail도 앱 비밀번호로 IMAP 연결 가능)은 그대로 쓸 수 있습니다. 남에게 나눠 줄 실행 파일은
-`.env.local` 없이 빌드하세요. 있으면 클라이언트 ID와 시크릿이 실행 파일 안에 들어갑니다.
+Google 로그인(Gmail API·Google 주소록)은 **선택 사항**입니다. 설정하지 않아도 IMAP·POP3 계정
+(Gmail도 앱 비밀번호로 IMAP 연결 가능)은 그대로 쓸 수 있습니다. 실행 파일에는 Google 클라이언트가 들어 있지 않으며,
+각자 만든 클라이언트를 앱에 입력해 씁니다.
 
 Google 로그인을 쓰려면:
 
@@ -30,8 +30,8 @@ Google 로그인을 쓰려면:
    - `https://www.googleapis.com/auth/contacts.other.readonly` (메일을 주고받은 사람)
 3. **Google 인증 플랫폼 → 클라이언트**에서 애플리케이션 유형을 **데스크톱 앱**으로 선택해 클라이언트를 만듭니다.
    리디렉션 URI는 등록하지 않아도 됩니다.
-4. `.env.example`을 `.env.local`로 복사하고 클라이언트 ID와 시크릿을 넣습니다.
-   `.env.local` 없이 만든 실행 파일(배포용, 맥용)에서는 **메일 계정 추가 → Gmail (Google 로그인)** 화면에 클라이언트 ID와 시크릿을 직접 넣어도 됩니다(이 컴퓨터에만 암호화해 저장).
+4. 앱의 **메일 계정 추가 → Gmail (Google 로그인)** 화면에 클라이언트 ID와 시크릿을 넣습니다.
+   `safeStorage`로 암호화해 이 컴퓨터의 `%APPDATA%\Mail Client\google-client.bin`에만 저장합니다.
 
 Google 계정은 여러 개 추가할 수 있습니다. 추가할 계정마다 위 2단계의 테스트 사용자로 등록되어 있어야 합니다.
 Google 주소록은 사용 중인 계정이 Google 계정이면 그 계정의 것을, 아니면 목록의 첫 Google 계정의 것을 씁니다.
@@ -70,11 +70,10 @@ Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로
 
 | 명령어 | 설명 |
 | --- | --- |
-| `npm run dist` | 이 PC용 실행 파일 생성 → `release/MailClient-<버전>-local.exe`. `.env.local`의 Google 키가 들어가므로 남에게 주지 마세요. 실행 방식은 아래 `dist:public`과 같고, Rust(`cargo`)가 필요합니다 |
-| `npm run dist:public` | 남에게 줄 실행 파일 생성 → `release/MailClient-<버전>.exe`. Google 키를 넣지 않고, 처음 실행하면 exe 옆 `Mail Client` 폴더에 앱을 풀어 둔 뒤 실행합니다(이후 실행은 바로 시작). Rust(`cargo`)가 필요합니다 |
+| `npm run dist:public` | 실행 파일 생성 → `release/MailClient-<버전>.exe`. 이 PC용·배포용 구분 없이 같은 파일입니다. 처음 실행하면 exe 옆 `Mail Client` 폴더에 앱을 풀어 둔 뒤 실행합니다(이후 실행은 바로 시작). Rust(`cargo`)가 필요합니다 |
 | `npm run dist:mac` | 맥용 앱 생성 → `release/MailClient-<버전>-mac-arm64.dmg`(M1 이후), `-mac-x64.dmg`(Intel). macOS에서만 실행됩니다. 아래 **맥(macOS)** 참고 |
 | `npm start` | 빌드 후 앱 실행 |
-| `npm run dev` | 개발 모드 (Next 개발 서버 + 앱). `src/` 수정은 즉시 반영, `electron/`·`.env.local` 수정은 앱 자동 재시작. 앱 창을 닫으면 종료 |
+| `npm run dev` | 개발 모드 (Next 개발 서버 + 앱). `src/` 수정은 즉시 반영, `electron/` 수정은 앱 자동 재시작. 앱 창을 닫으면 종료 |
 | `npm test` | 단위 테스트 |
 | `npm run typecheck` / `npm run lint` | 타입 검사 / ESLint |
 
@@ -83,7 +82,7 @@ Zoho 무료(Forever Free) 플랜은 IMAP·POP·SMTP를 제공하지 않으므로
 `MailClient-<버전>.exe`로 실행한 앱은 시작할 때 한 번 GitHub의 최신 릴리스를 확인합니다(실행 중에는 **메일 계정 → 업데이트 확인**을 누를 때만). 새 버전이 있으면 업데이트할지 묻고, 업데이트하면 진행 상태를 보여 주며 받아 크기·SHA-256(GitHub가 계산한 값)·패키지 형식을 확인한 뒤 다시 시작할지 묻습니다. 나중에 하면 앱을 종료할 때 실행 파일을 같은 이름으로 바꿔 둡니다(다음 실행 때 새 버전으로 풀림). **메일 계정** 화면이나 왼쪽 아래 알림의 **다시 시작**을 누르면 바로 적용합니다.
 
 - 릴리스에는 `npm run dist:public`으로 만든 `MailClient-<버전>.exe`를 그 이름 그대로 올려야 하고, 태그는 `v<버전>`이어야 합니다.
-- `npm run dev`와 `-local.exe`(Google 키가 들어간 빌드)는 자동 업데이트를 하지 않습니다.
+- `npm run dev`로 실행한 앱은 자동 업데이트를 하지 않습니다.
 - 업데이트를 시험하려면 `MAIL_CLIENT_UPDATE_FEED=<로컬 주소>`를 설정해 `npm run dist:public`으로 빌드합니다. 이렇게 만든 exe는 배포하지 마세요.
 
 `release/` 폴더의 `.exe` 파일 하나만 있으면 설치 없이 실행됩니다(처음 실행할 때 exe 옆에 `Mail Client` 폴더를 만듭니다).
@@ -156,7 +155,7 @@ scripts/             Electron 번들 스크립트 (esbuild)
 
 - OAuth 앱이 "테스트" 상태이면 **리프레시 토큰이 7일 후 만료**되어 다시 로그인해야 합니다.
 - `gmail.modify`는 Google의 **제한된 범위**입니다. 불특정 사용자에게 배포하려면 OAuth 앱 검증이 필요합니다.
-- `.env.local`이 있으면 클라이언트 ID와 시크릿이 실행 파일에 포함됩니다. 데스크톱 앱용 클라이언트에서는 Google도 이 값을 비밀로 취급하지 않으며, PKCE가 로그인을 보호합니다. 다만 실행 파일을 공개하면 누구나 이 값을 꺼내 같은 앱 이름으로 로그인 화면을 띄울 수 있으니, 배포용은 `.env.local` 없이 빌드하세요.
+- Google 클라이언트 ID와 시크릿은 실행 파일에 넣지 않고, 사용자가 앱에 입력한 값을 이 컴퓨터에 암호화해 둡니다. 데스크톱 앱용 클라이언트에서는 Google도 시크릿을 비밀로 취급하지 않으며, PKCE가 로그인을 보호합니다.
 
 ## 라이선스
 

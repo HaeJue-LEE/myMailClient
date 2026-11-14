@@ -112,7 +112,7 @@ export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 /**
  * Where updating from GitHub releases stands. Only copies started through
  * the launcher update; `reason` says why one does not (`dev`: no launcher,
- * e.g. `npm run dev`; `local`: a build with a built-in Google client).
+ * e.g. `npm run dev`).
  */
 export type UpdateStatus = {
   currentVersion: string;
@@ -129,7 +129,7 @@ export type UpdateStatus = {
     | "downloading"
     | "ready"
     | "error";
-  reason?: "dev" | "local";
+  reason?: "dev";
   /**
    * The Mac app: the dmg of a later release is downloaded by the app and
    * installed by hand (`installDownloadedDmg` opens it and quits); there is
@@ -154,12 +154,12 @@ export type UpdateStatus = {
 /** What the app can do as set up now. */
 export type AppFeatures = {
   /**
-   * Google sign-in (Gmail API, Google contacts): needs a Google OAuth client,
-   * built in or entered by the user. Gmail also works as an IMAP account.
+   * Google sign-in (Gmail API, Google contacts): needs the user's own Google
+   * OAuth client, entered in the app. Gmail also works as an IMAP account.
    */
   googleSignIn: boolean;
-  /** Where the client comes from: built in (.env.local), entered in the app, or none yet. */
-  googleClient: "built-in" | "custom" | "none";
+  /** Whether a client was entered in the app (`custom`), or none yet. */
+  googleClient: "custom" | "none";
   /** The start of the client ID in use, to recognise it; never the secret. */
   googleClientHint: string | null;
   /**

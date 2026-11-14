@@ -8,7 +8,6 @@ import { pipeline } from "node:stream/promises";
 import path from "node:path";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import type { UpdateStatus } from "@/features/mail/bridge";
-import { getGoogleClient } from "./google-client";
 import { numberedName } from "./open-attachment";
 import { launcherPath } from "./shortcuts";
 import {
@@ -30,9 +29,7 @@ import {
  * app on its next start. "Restart now" does the same and starts it at once,
  * telling the launcher to wait for this app to end first.
  *
- * Not offered when there is no launcher (`npm run dev`, the unpacked folder),
- * nor for builds with a built-in Google client (`npm run dist`): the public
- * exe would take that client, and the sign-in made with it, away.
+ * Not offered when there is no launcher (`npm run dev`, the unpacked folder).
  *
  * The Mac app is a plain .app bundle without the launcher, and not signed by
  * Apple, so it cannot replace itself (`byHand`). When a later release has a
@@ -81,16 +78,15 @@ const set = (next: Omit<UpdateStatus, "currentVersion" | "byHand">) => {
 const offer = (exe: ReleaseExe) =>
   set({ state: "available", version: exe.version, total: exe.size, notes: exe.notes });
 
-async function unsupportedReason(): Promise<"dev" | "local" | null> {
+function unsupportedReason(): "dev" | null {
   if (BY_HAND) return app.isPackaged ? null : "dev";
   if (!app.isPackaged || !launcherPath()) return "dev";
-  if ((await getGoogleClient()).source === "built-in") return "local";
   return null;
 }
 
 export async function getUpdateStatus(): Promise<UpdateStatus> {
   if (status.state === "idle" || status.state === "unsupported") {
-    const reason = await unsupportedReason();
+    const reason = unsupportedReason();
     if (reason) set({ state: "unsupported", reason });
   }
   return status;
@@ -189,7 +185,7 @@ async function downloadDmg(dmg: ReleaseDmg, signal: AbortSignal): Promise<string
  * status as it was, unless the user asked.
  */
 export async function checkForUpdate({ manual }: { manual: boolean }): Promise<UpdateStatus> {
-  const reason = await unsupportedReason();
+  const reason = unsupportedReason();
   if (reason) {
     set({ state: "unsupported", reason });
     return status;

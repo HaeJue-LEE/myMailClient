@@ -2,36 +2,27 @@
 // app (release/win-unpacked, zipped) appended. The first run unpacks the app
 // into a "Mail Client" folder beside the exe, later runs start it directly.
 //
-// - Default (`npm run dist:public`): `release/MailClient-<version>.exe`, to
-//   hand to others. Always built without the Google OAuth client, so no
-//   client secret ships.
-// - `--local` (`npm run dist`): `release/MailClient-<version>-local.exe`, for
-//   this PC: built with the Google client from .env.local when there is one.
-//   Not for handing out: the client secret is inside.
+// `npm run dist:public` makes `release/MailClient-<version>.exe`, the one
+// executable for this PC, others and releases alike: no Google OAuth client is
+// built in, each user enters their own in the app.
 //
-// dist-electron/ is shared with `npm run dev` and `npm start`, so afterwards
-// (also on failure) it is rebuilt the usual way, with the client from
-// .env.local when there is one.
+// dist-electron/ is shared with `npm run dev` and `npm start`, so a build made
+// to test the updater (MAIL_CLIENT_UPDATE_FEED) rebuilds it the usual way
+// afterwards, also on failure.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { parseEnv } from "node:util";
 import { build } from "esbuild";
-import {
-  electronBuildOptions,
-  oauthClientFrom,
-} from "./electron-build-options.mjs";
+import { electronBuildOptions } from "./electron-build-options.mjs";
 
-const ENV_FILE = ".env.local";
 const RELEASE = path.resolve("release");
 const UNPACKED = path.join(RELEASE, "win-unpacked");
 const PAYLOAD = path.join(RELEASE, "payload.zip");
 const LAUNCHER = path.resolve("launcher/target/release/mailclient-launcher.exe");
 const MAGIC = Buffer.from("MCPKG001");
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
-const LOCAL = process.argv.includes("--local");
-const OUTPUT = path.join(RELEASE, `MailClient-${version}${LOCAL ? "-local" : ""}.exe`);
+const OUTPUT = path.join(RELEASE, `MailClient-${version}.exe`);
 
 function run(command, args, options = {}) {
   // `shell` resolves npm/npx on Windows as npm scripts do.
@@ -41,19 +32,14 @@ function run(command, args, options = {}) {
   }
 }
 
-const bundle = (client, updateFeed = "") =>
-  Promise.all(electronBuildOptions(client, updateFeed).map((options) => build(options)));
+const bundle = (updateFeed = "") =>
+  Promise.all(electronBuildOptions(updateFeed).map((options) => build(options)));
 
 /**
  * MAIL_CLIENT_UPDATE_FEED replaces the GitHub release feed in the exe, to
  * test updating against a local feed. Never set it for a release.
  */
 const UPDATE_FEED = process.env.MAIL_CLIENT_UPDATE_FEED ?? "";
-
-function localClient() {
-  const file = existsSync(ENV_FILE) ? parseEnv(readFileSync(ENV_FILE, "utf8")) : {};
-  return oauthClientFrom({ ...process.env, ...file });
-}
 
 function buildLauncher() {
   const cargo = spawnSync("cargo", ["--version"], { shell: true });
@@ -91,18 +77,7 @@ function assemble() {
 let failed = false;
 try {
   run("npm", ["run", "build:web"]);
-  if (LOCAL) {
-    const client = localClient();
-    console.log(
-      client
-        ? "이 PC용 빌드: .env.local의 Google 클라이언트를 넣습니다. 남에게 주지 마세요."
-        : "이 PC용 빌드: .env.local이 없어 Google 로그인 없이 빌드합니다.",
-    );
-    await bundle(client, UPDATE_FEED);
-  } else {
-    console.log("배포용 빌드: Google 클라이언트를 넣지 않습니다.");
-    await bundle(null, UPDATE_FEED);
-  }
+  await bundle(UPDATE_FEED);
   if (UPDATE_FEED) {
     console.warn(`
 *** 업데이트 시험용 빌드: 업데이트를 ${UPDATE_FEED}에서 확인합니다. 배포하지 마세요. ***
@@ -117,12 +92,9 @@ try {
   failed = true;
   console.error(error.message);
 } finally {
-  const client = localClient();
-  await bundle(client);
-  console.log(
-    client
-      ? "이 PC용 앱 코드를 .env.local의 Google 클라이언트로 다시 빌드했습니다."
-      : "이 PC용 앱 코드를 다시 빌드했습니다 (.env.local 없음: Google 로그인 없음).",
-  );
+  if (UPDATE_FEED) {
+    await bundle();
+    console.log("업데이트 시험 주소를 뺀 앱 코드로 다시 빌드했습니다.");
+  }
 }
 if (failed) process.exit(1);

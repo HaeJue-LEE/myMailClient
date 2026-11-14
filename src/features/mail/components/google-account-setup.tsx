@@ -76,7 +76,6 @@ export function GoogleAccountSetup({
         </p>
       )}
       <ClientInUse
-        source={features.data.googleClient}
         hint={features.data.googleClientHint}
         signedInCount={signedIn.length}
       />
@@ -109,19 +108,8 @@ export function GoogleAccountSetup({
  * Which client sign-in uses. An entered one can be removed to enter another,
  * while no Google account depends on it: its sign-ins would go with it.
  */
-function ClientInUse({
-  source,
-  hint,
-  signedInCount,
-}: {
-  source: "built-in" | "custom";
-  hint: string | null;
-  signedInCount: number;
-}) {
+function ClientInUse({ hint, signedInCount }: { hint: string | null; signedInCount: number }) {
   const remove = useRemoveGoogleClient();
-  if (source === "built-in") {
-    return <p className="text-xs opacity-60">이 앱에 내장된 Google 클라이언트를 사용합니다.</p>;
-  }
   if (signedInCount > 0) {
     return (
       <p className="text-xs opacity-60">

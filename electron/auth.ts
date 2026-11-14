@@ -36,7 +36,7 @@ const sessions = new Map<string, { session: Session; clientId: string }>();
 let activeLogin: AbortController | null = null;
 
 function oauthClient(client: GoogleClient, redirectUri?: string) {
-  // Built in from .env.local or entered by the user. For desktop OAuth
+  // Entered by the user (see google-client.ts). For desktop OAuth
   // clients Google does not treat the secret as confidential; PKCE protects
   // the exchange.
   return new OAuth2Client({

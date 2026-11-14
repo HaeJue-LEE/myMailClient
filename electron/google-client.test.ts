@@ -37,7 +37,7 @@ afterEach(async () => {
 });
 
 describe("Google client", () => {
-  it("has none until one is built in or entered", async () => {
+  it("has none until one is entered", async () => {
     const store = await fresh();
     expect(await store.getGoogleClient()).toEqual({ client: null, source: "none" });
   });
@@ -50,12 +50,13 @@ describe("Google client", () => {
     expect(file).not.toContain(CLIENT.clientSecret);
   });
 
-  it("uses the built-in client first, and refuses another one then", async () => {
+  it("ignores a client in the environment: none is built in", async () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "111111111111-builtinbuiltin.apps.googleusercontent.com");
-    vi.stubEnv("GOOGLE_CLIENT_SECRET", "built-in-secret");
+    vi.stubEnv("GOOGLE_CLIENT_SECRET", "TEST-built-in-secret");
     const store = await fresh();
-    expect((await store.getGoogleClient()).source).toBe("built-in");
-    await expect(store.saveCustomGoogleClient(CLIENT)).rejects.toThrow();
+    expect(await store.getGoogleClient()).toEqual({ client: null, source: "none" });
+    await store.saveCustomGoogleClient(CLIENT);
+    expect(await store.getGoogleClient()).toEqual({ client: CLIENT, source: "custom" });
   });
 
   it("refuses values that are not a desktop client's", async () => {
