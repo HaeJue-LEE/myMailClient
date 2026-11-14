@@ -122,7 +122,7 @@ Mac에서 설치하기:
 그 밖에:
 
 - Google 키가 들어 있지 않습니다. Google 로그인(Gmail API)을 쓰려면 **메일 계정 추가 → Gmail (Google 로그인)**에 직접 만든 클라이언트 ID와 시크릿을 넣습니다(위 **준비** 참고). 앱 비밀번호로 IMAP 계정으로 추가해도 됩니다.
-- 바로 가기와 MyApps의 프로그램 실행은 Windows 전용입니다.
+- MyApps의 **이 컴퓨터의 프로그램**으로 맥 앱(`.app`)이나 터미널 스크립트(`.command`)를 고를 수 있습니다. 바로 가기는 Windows 전용입니다.
 - 설정과 계정은 `~/Library/Application Support/Mail Client`에 저장됩니다. Windows에서 쓰던 계정 파일은 옮겨도 열리지 않습니다.
 
 ## 구조

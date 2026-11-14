@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,14 +8,19 @@ import { InvalidRequestError } from "../errors";
 const TOOL_PATH = "C:\\Tools\\Example\\example.exe";
 
 let picked: string[] = [];
+let dialogOptions: unknown = null;
 let openResult = "";
 const opened: string[] = [];
 const messages: { message: string; detail: string }[] = [];
 
 vi.mock("electron", () => ({
   app: { getFileIcon: async () => ({ isEmpty: () => true }) },
+  nativeImage: { createThumbnailFromPath: async () => ({ isEmpty: () => true }) },
   dialog: {
-    showOpenDialog: async () => ({ canceled: picked.length === 0, filePaths: picked }),
+    showOpenDialog: async (options: unknown) => {
+      dialogOptions = options;
+      return { canceled: picked.length === 0, filePaths: picked };
+    },
     showMessageBox: async (options: { message: string; detail: string }) => {
       messages.push(options);
       return { response: 0 };
@@ -55,10 +60,48 @@ describe("picking a program", () => {
     expect(await chooseProgram(null)).toEqual({ path: TOOL_PATH, name: "example", icon: null });
   });
 
+  it("returns a picked Mac app with its name without .app", async () => {
+    picked = ["/Applications/Example Tool.app"];
+    expect(await chooseProgram(null)).toEqual({
+      path: "/Applications/Example Tool.app",
+      name: "Example Tool",
+      icon: null,
+    });
+  });
+
   it("returns null when the dialog is cancelled, and refuses a file that is not a program", async () => {
     expect(await chooseProgram(null)).toBeNull();
     picked = ["C:\\Tools\\notes.txt"];
     await expect(chooseProgram(null)).rejects.toBeInstanceOf(InvalidRequestError);
+  });
+});
+
+describe("the file dialog", () => {
+  const platform = process.platform;
+  afterEach(() => Object.defineProperty(process, "platform", { value: platform }));
+
+  /** `chooseProgram` as loaded on `os`, which it checks once when loaded. */
+  async function chooseOn(os: NodeJS.Platform) {
+    Object.defineProperty(process, "platform", { value: os });
+    vi.resetModules();
+    return (await import("./programs")).chooseProgram;
+  }
+
+  it("offers programs, shortcuts kept as themselves, and batch files on Windows", async () => {
+    await (await chooseOn("win32"))(null);
+    expect(dialogOptions).toMatchObject({
+      properties: ["openFile", "noResolveAliases"],
+      filters: [{ extensions: ["exe", "lnk", "bat", "cmd"] }],
+    });
+  });
+
+  it("offers apps and Terminal scripts from Applications on a Mac, following aliases", async () => {
+    await (await chooseOn("darwin"))(null);
+    expect(dialogOptions).toMatchObject({
+      defaultPath: "/Applications",
+      properties: ["openFile"],
+      filters: [{ extensions: ["app", "command"] }],
+    });
   });
 });
 
@@ -97,6 +140,14 @@ describe("running a program", () => {
     await writeFile(file, "");
     await launchProgram(program(file), null);
     expect(opened).toEqual([file]);
+    expect(messages).toEqual([]);
+  });
+
+  it("opens a Mac app, which is a folder", async () => {
+    const app = path.join(folder, "Example.app");
+    await mkdir(app);
+    await launchProgram(program(app), null);
+    expect(opened).toEqual([app]);
     expect(messages).toEqual([]);
   });
 

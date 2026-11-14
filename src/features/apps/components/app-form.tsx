@@ -14,13 +14,14 @@ import {
   withScheme,
 } from "@/features/apps/apps";
 import { AppTile } from "@/features/apps/components/app-tile";
+import { useOnMac } from "@/features/apps/components/on-mac";
 
 const INPUT_CLASS =
   "w-full rounded-md border border-foreground/20 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-foreground/60 aria-[invalid=true]:border-red-600";
 
 const KIND_LABELS: Record<AppKind, string> = {
   web: "웹 주소",
-  program: "이 PC의 프로그램",
+  program: "이 컴퓨터의 프로그램",
 };
 
 const OPEN_MODE_NOTES: Record<OpenMode, string> = {
@@ -54,6 +55,7 @@ export function AppForm({
   const [hideAddressBar, setHideAddressBar] = useState(web?.hideAddressBar ?? false);
   const chooseIcon = useChooseAppIcon();
   const chooseProgram = useChooseProgram();
+  const onMac = useOnMac();
   const [submitted, setSubmitted] = useState(false);
   const groupList = useId();
 
@@ -193,19 +195,23 @@ export function AppForm({
               onClick={pickProgram}
               className="shrink-0 rounded-md border border-foreground/20 px-3 py-1.5 hover:bg-foreground/5 disabled:opacity-50"
             >
-              {path ? "다른 프로그램…" : "프로그램 선택…"}
+              {path ? (onMac ? "다른 앱…" : "다른 프로그램…") : onMac ? "앱 선택…" : "프로그램 선택…"}
             </button>
           </div>
           {chooseProgram.isError ? (
             <span role="alert" className="mt-1 block text-xs text-red-600">
-              이 파일은 실행할 수 없습니다. 프로그램(.exe), 바로 가기(.lnk), 배치 파일(.bat, .cmd)을 골라 주세요.
+              {onMac
+                ? "이 항목은 실행할 수 없습니다. 앱(.app)이나 터미널 스크립트(.command)를 골라 주세요."
+                : "이 파일은 실행할 수 없습니다. 프로그램(.exe), 바로 가기(.lnk), 배치 파일(.bat, .cmd)을 골라 주세요."}
             </span>
           ) : submitted && problems.path ? (
             <span className="mt-1 block text-xs text-red-600">{problems.path}</span>
           ) : (
             <span className="mt-1 block text-xs opacity-60">
-              파일을 더블클릭한 것처럼 실행합니다. 프로그램(.exe), 바로 가기(.lnk), 배치 파일(.bat, .cmd)을 고를 수 있으며,
-              실행할 때 옵션(명령줄 인수)은 넘기지 않습니다. 옵션이 필요하면 옵션을 넣은 바로 가기를 만들어 고르세요.
+              {onMac
+                ? "Finder에서 더블클릭한 것처럼 엽니다. 응용 프로그램 폴더의 앱(.app)이나 터미널 스크립트(.command)를 고를 수 있습니다."
+                : "파일을 더블클릭한 것처럼 실행합니다. 프로그램(.exe), 바로 가기(.lnk), 배치 파일(.bat, .cmd)을 고를 수 있으며, " +
+                  "실행할 때 옵션(명령줄 인수)은 넘기지 않습니다. 옵션이 필요하면 옵션을 넣은 바로 가기를 만들어 고르세요."}
             </span>
           )}
         </div>

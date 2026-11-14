@@ -36,7 +36,7 @@ export function AppView() {
       <div className="space-y-3 p-6 text-sm">
         {app.kind === "program" ? (
           <p>
-            <b>{app.name}</b>은(는) 이 PC의 프로그램입니다 ({fileNameOf(app.path)}).
+            <b>{app.name}</b>은(는) 이 컴퓨터의 프로그램입니다 ({fileNameOf(app.path)}).
           </p>
         ) : (
           <p>

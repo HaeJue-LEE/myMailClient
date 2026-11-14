@@ -1,9 +1,10 @@
-import { type BrowserWindow, dialog, shell } from "electron";
+import { type BrowserWindow, dialog, nativeImage, type OpenDialogOptions, shell } from "electron";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import {
   fileNameOf,
   isProgramPath,
+  MAC_PROGRAM_EXTENSIONS,
   MAX_APP_NAME_LENGTH,
   type MyAppInput,
   PROGRAM_EXTENSIONS,
@@ -22,13 +23,26 @@ import { toAppIcon } from "./icons";
  */
 const picked = new Set<string>();
 
+const ON_MAC = process.platform === "darwin";
+
 async function showDialog(window: BrowserWindow | null) {
-  const options = {
-    title: "실행할 프로그램 선택",
-    // A shortcut is kept as itself (with its options), not swapped for its target.
-    properties: ["openFile" as const, "noResolveAliases" as const],
-    filters: [{ name: "프로그램 (exe, 바로 가기, bat, cmd)", extensions: [...PROGRAM_EXTENSIONS] }],
-  };
+  const options: OpenDialogOptions = ON_MAC
+    ? {
+        title: "실행할 앱 선택",
+        // A Mac open panel shows this, not the title.
+        message: "MyApps에 넣을 앱을 고르세요.",
+        defaultPath: "/Applications",
+        // An app is picked as one item, not opened as a folder; an alias is
+        // followed to the app it stands for.
+        properties: ["openFile"],
+        filters: [{ name: "앱 (app, command)", extensions: [...MAC_PROGRAM_EXTENSIONS] }],
+      }
+    : {
+        title: "실행할 프로그램 선택",
+        // A shortcut is kept as itself (with its options), not swapped for its target.
+        properties: ["openFile", "noResolveAliases"],
+        filters: [{ name: "프로그램 (exe, 바로 가기, bat, cmd)", extensions: [...PROGRAM_EXTENSIONS] }],
+      };
   return window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options);
 }
 
@@ -52,6 +66,23 @@ function iconSource(file: string) {
 }
 
 /**
+ * A picked program's icon, large. On a Mac, an app's icon as Finder draws
+ * it (Electron's own file icon there is 32px); elsewhere, or when that
+ * fails, the icon read from the file (see `fileIconImage`).
+ */
+async function programIcon(file: string) {
+  if (ON_MAC) {
+    try {
+      const icon = await nativeImage.createThumbnailFromPath(file, { width: 256, height: 256 });
+      if (!icon.isEmpty()) return icon;
+    } catch {
+      // Electron's file icon below.
+    }
+  }
+  return fileIconImage(iconSource(file), file);
+}
+
+/**
  * Asks for a program and returns it with a suggested name (its file name)
  * and its own icon; null when the dialog is cancelled.
  */
@@ -64,7 +95,7 @@ export async function chooseProgram(window: BrowserWindow | null): Promise<Picke
 
   let icon: string | null = null;
   try {
-    icon = toAppIcon(await fileIconImage(iconSource(file), file));
+    icon = toAppIcon(await programIcon(file));
   } catch {
     // No icon: the letter tile.
   }

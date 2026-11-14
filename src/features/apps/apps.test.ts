@@ -122,6 +122,33 @@ describe("isProgramPath", () => {
     }
   });
 
+  it("accepts full Mac paths to apps and Terminal scripts", () => {
+    for (const path of [
+      "/Applications/Example.app",
+      "/Applications/Utilities/Example Tool.app",
+      "/Users/Shared/Scripts/backup.command",
+    ]) {
+      expect(isProgramPath(path), path).toBe(true);
+    }
+  });
+
+  it("refuses Mac paths that are relative, odd, or to other files", () => {
+    for (const path of [
+      "Applications/Example.app",
+      "/Applications/Example.app/",
+      "/Applications//Example.app",
+      "/Applications/../Users/Example.app",
+      "/Applications/./Example.app",
+      "/Applications/notes.txt",
+      "/Applications/Example",
+      "/Applications/example.exe",
+      "C:\\Tools\\Example.app",
+      "/Applications/Example.app\n/Applications/Other.app",
+    ]) {
+      expect(isProgramPath(path), path).toBe(false);
+    }
+  });
+
   it("refuses relative paths, other files, and control characters", () => {
     for (const path of [
       "example.exe",

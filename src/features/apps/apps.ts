@@ -92,19 +92,30 @@ export type ProgramApp = AppBase & {
 
 export type MyApp = WebApp | ProgramApp;
 
-/** What a program app may be: a program, a shortcut to one, or a batch file. */
+/** What a program app may be on Windows: a program, a shortcut to one, or a batch file. */
 export const PROGRAM_EXTENSIONS = ["exe", "lnk", "bat", "cmd"] as const;
+/** On a Mac: an app, or a Terminal script (`.command`), which runs when double-clicked. */
+export const MAC_PROGRAM_EXTENSIONS = ["app", "command"] as const;
 export const MAX_PROGRAM_PATH_LENGTH = 1000;
 
 /**
- * True for a full Windows path (`C:\…` or a network share `\\server\share\…`)
- * to a file with one of `PROGRAM_EXTENSIONS`, and no control characters.
+ * True, with no control characters, for a full Windows path (`C:\…` or a
+ * network share `\\server\share\…`) to a file with one of `PROGRAM_EXTENSIONS`,
+ * or a full Mac path (`/Applications/…`, no `.`, `..`, or empty parts) to one
+ * with one of `MAC_PROGRAM_EXTENSIONS`.
  */
 export function isProgramPath(value: string) {
   if (value.length > MAX_PROGRAM_PATH_LENGTH || /[\u0000-\u001f]/.test(value)) return false;
-  if (!/^(?:[A-Za-z]:\\|\\\\[^\\]+\\[^\\]+\\)/.test(value)) return false;
-  const extension = /\.([A-Za-z]+)$/.exec(value)?.[1]?.toLowerCase();
-  return (PROGRAM_EXTENSIONS as readonly string[]).includes(extension ?? "");
+  const extension = /\.([A-Za-z]+)$/.exec(value)?.[1]?.toLowerCase() ?? "";
+  if (/^(?:[A-Za-z]:\\|\\\\[^\\]+\\[^\\]+\\)/.test(value)) {
+    return (PROGRAM_EXTENSIONS as readonly string[]).includes(extension);
+  }
+  if (value.startsWith("/")) {
+    const parts = value.slice(1).split("/");
+    if (parts.some((part) => part === "" || part === "." || part === "..")) return false;
+    return (MAC_PROGRAM_EXTENSIONS as readonly string[]).includes(extension);
+  }
+  return false;
 }
 
 /** The file name at the end of a path, e.g. `example.exe`. */
