@@ -85,11 +85,24 @@ export function useClearTrustedCerts() {
   });
 }
 
-/** Opens an app in its own window or the default browser (embedded apps are linked to instead). */
+/** Opens an app in its own window or a browser (embedded apps are linked to instead). */
 export function useOpenApp() {
   return useMutation({
     mutationFn: (input: { id: string; mode?: "window" | "browser" }) =>
       unwrapApps(appsBridge().openApp(input)),
+  });
+}
+
+/**
+ * The browsers installed on this computer. Looked up again each time the
+ * form opens, so one installed meanwhile shows up.
+ */
+export function useBrowsers() {
+  return useQuery({
+    queryKey: ["myAppsBrowsers"],
+    queryFn: async () => (await unwrapApps(appsBridge().listBrowsers())).browsers,
+    staleTime: 0,
+    gcTime: 0,
   });
 }
 

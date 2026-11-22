@@ -5,6 +5,7 @@ import path from "node:path";
 import { z } from "zod";
 import {
   appIconSchema,
+  browserChoiceSchema,
   MAX_APPS,
   type MyApp,
   type MyAppInput,
@@ -36,6 +37,8 @@ const webAppSchema = z.object({
   url: z.string(),
   openIn: z.enum(OPEN_MODES).catch("embed"),
   hideAddressBar: z.boolean().catch(false),
+  // Missing (a file from before the choice) or damaged: the default browser.
+  browser: browserChoiceSchema.nullable().catch(null),
   trustedCerts: z.array(trustedCertSchema).default([]),
 });
 const programAppSchema = z.object({
@@ -101,7 +104,9 @@ async function persist(file: AppsFile) {
 }
 
 const copy = (item: MyApp): MyApp =>
-  item.kind === "web" ? { ...item, trustedCerts: [...item.trustedCerts] } : { ...item };
+  item.kind === "web"
+    ? { ...item, browser: item.browser && { ...item.browser }, trustedCerts: [...item.trustedCerts] }
+    : { ...item };
 
 export async function listApps(): Promise<MyApp[]> {
   return (await load()).apps.map(copy);
@@ -115,7 +120,8 @@ export async function getApp(id: string): Promise<MyApp> {
 
 /**
  * The app as saved from the form's `fields`, over `previous` when editing.
- * What the form leaves out (the picture, the address bar setting) is kept;
+ * What the form leaves out (the picture, the address bar setting, the
+ * browser) is kept;
  * an app changed to the other kind keeps nothing of its old kind.
  */
 function build(id: string, fields: z.output<typeof myAppInputSchema>, previous: MyApp | null): MyApp {
@@ -134,6 +140,7 @@ function build(id: string, fields: z.output<typeof myAppInputSchema>, previous: 
     url: fields.url,
     openIn: fields.openIn,
     hideAddressBar: fields.hideAddressBar ?? before?.hideAddressBar ?? false,
+    browser: fields.browser === undefined ? (before?.browser ?? null) : fields.browser,
     trustedCerts: before ? [...before.trustedCerts] : [],
   };
 }

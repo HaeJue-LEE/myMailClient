@@ -116,6 +116,7 @@ describe("apps store", () => {
         pinned: false,
         icon: null,
         hideAddressBar: false,
+        browser: null,
         trustedCerts: [],
       },
     ]);
@@ -141,6 +142,27 @@ describe("apps store", () => {
     expect(web(hidden).hideAddressBar).toBe(true);
     expect(web((await store.saveApp({ ...nas, id: saved.id, name: "우리집 NAS" })).saved).hideAddressBar).toBe(true);
     expect(web(await (await freshModule()).getApp(saved.id)).hideAddressBar).toBe(true);
+  });
+
+  it("keeps the browser unless the edit sets it", async () => {
+    const store = await freshModule();
+    const web = (item: unknown) => item as WebApp;
+    const firefox = { path: "C:\Program Files\Mozilla Firefox\firefox.exe", name: "Firefox" };
+    const { saved } = await store.saveApp({ ...nas, openIn: "browser", browser: firefox });
+    expect(web(saved).browser).toEqual(firefox);
+    // Left out: kept, also after a restart.
+    expect(web((await store.saveApp({ ...nas, id: saved.id, name: "우리집 NAS" })).saved).browser).toEqual(firefox);
+    expect(web(await (await freshModule()).getApp(saved.id)).browser).toEqual(firefox);
+    // Null: back to the default browser.
+    expect(web((await store.saveApp({ ...nas, id: saved.id, browser: null })).saved).browser).toBeNull();
+  });
+
+  it("drops a damaged browser in the file, keeping the app", async () => {
+    await writeFile(
+      path.join(userData, "apps.json"),
+      JSON.stringify({ apps: [{ id: "x", name: "NAS", url: "https://nas.example.lan/", browser: { path: 1 } }] }),
+    );
+    expect(await (await freshModule()).listApps()).toMatchObject([{ id: "x", browser: null }]);
   });
 
   it("drops a damaged icon in the file, keeping the app", async () => {

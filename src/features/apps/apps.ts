@@ -8,7 +8,8 @@ import { z } from "zod";
 
 /**
  * How an app opens: inside the main window (`embed`), in a window of its own
- * (`window`), or in the default browser (`browser`).
+ * (`window`), or in a browser (`browser`): the default one, or the one picked
+ * for the app (see `BrowserChoice`).
  */
 export const OPEN_MODES = ["embed", "window", "browser"] as const;
 export type OpenMode = (typeof OPEN_MODES)[number];
@@ -16,7 +17,7 @@ export type OpenMode = (typeof OPEN_MODES)[number];
 export const OPEN_MODE_LABELS: Record<OpenMode, string> = {
   embed: "앱 안에서",
   window: "새 창에서",
-  browser: "기본 브라우저에서",
+  browser: "브라우저에서",
 };
 
 /** Groups offered when adding an app; any other name may be typed. */
@@ -52,6 +53,22 @@ export const appIconSchema = z.string().refine(isAppIcon, { message: "icon" });
  */
 export type TrustedCert = { host: string; fingerprint: string };
 
+/**
+ * A browser installed on this computer, to open a web app in instead of the
+ * default one. `path` is the browser's program (`chrome.exe`) or, on a Mac,
+ * its app (`/Applications/Firefox.app`); `name` is only shown. The main
+ * process opens a saved choice only if `path` is still one of the browsers
+ * it finds itself, so the page cannot make it run anything else.
+ */
+export type BrowserChoice = { path: string; name: string };
+
+export const MAX_BROWSER_NAME_LENGTH = 100;
+
+export const browserChoiceSchema = z.object({
+  path: z.string().min(1).max(1000),
+  name: z.string().trim().min(1).max(MAX_BROWSER_NAME_LENGTH),
+});
+
 /** A web app (opened at its address) or a program on this computer (run). */
 export const APP_KINDS = ["web", "program"] as const;
 export type AppKind = (typeof APP_KINDS)[number];
@@ -77,6 +94,11 @@ export type WebApp = AppBase & {
    * it back.
    */
   hideAddressBar: boolean;
+  /**
+   * The browser it opens in (in `browser` mode, and from the toolbar's
+   * browser button); null for the default browser.
+   */
+  browser: BrowserChoice | null;
   trustedCerts: TrustedCert[];
 };
 
@@ -179,6 +201,8 @@ export const myAppInputSchema = z.discriminatedUnion("kind", [
     openIn: z.enum(OPEN_MODES),
     /** Left out: an edited app keeps the setting. */
     hideAddressBar: z.boolean().optional(),
+    /** Left out: an edited app keeps its browser. Null: the default browser. */
+    browser: browserChoiceSchema.nullable().optional(),
   }),
   z.object({ ...commonInput, kind: z.literal("program"), path: programPathSchema }),
 ]);
@@ -210,9 +234,19 @@ export function appTarget(app: MyApp) {
   return app.kind === "web" ? appHost(app) : fileNameOf(app.path);
 }
 
+/** The browser a web app opens in, e.g. "Firefox" or "기본 브라우저". */
+export function browserLabel(app: Pick<WebApp, "browser">) {
+  return app.browser?.name ?? "기본 브라우저";
+}
+
+/** Where a web app opens, e.g. "새 창에서" or "Firefox에서". */
+export function openModeLabel(app: Pick<WebApp, "openIn" | "browser">) {
+  return app.openIn === "browser" ? `${browserLabel(app)}에서` : OPEN_MODE_LABELS[app.openIn];
+}
+
 /** How an app opens, e.g. "새 창에서 열기" or "프로그램 실행". */
 export function openLabel(app: MyApp) {
-  return app.kind === "web" ? `${OPEN_MODE_LABELS[app.openIn]} 열기` : "프로그램 실행";
+  return app.kind === "web" ? `${openModeLabel(app)} 열기` : "프로그램 실행";
 }
 
 /** One letter for the app's tile when it has no picture. */

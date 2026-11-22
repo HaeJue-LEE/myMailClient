@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { appsBridge, unwrapApps, useApps, useOpenApp, useSaveApp } from "@/features/apps/api";
-import { fileNameOf, OPEN_MODE_LABELS, type WebApp } from "@/features/apps/apps";
+import { browserLabel, fileNameOf, openModeLabel, type WebApp } from "@/features/apps/apps";
 import type { AppViewState, ViewAction, ViewBounds } from "@/features/apps/bridge";
 import { AppTile } from "@/features/apps/components/app-tile";
 import { appEditHref, APPS_HREF } from "@/features/apps/routes";
@@ -40,7 +40,7 @@ export function AppView() {
           </p>
         ) : (
           <p>
-            <b>{app.name}</b>은(는) {OPEN_MODE_LABELS[app.openIn]} 열도록 설정되어 있습니다.
+            <b>{app.name}</b>은(는) {openModeLabel(app)} 열도록 설정되어 있습니다.
           </p>
         )}
         <div className="flex gap-2">
@@ -171,7 +171,7 @@ function EmbeddedApp({ app }: { app: WebApp }) {
             )}
           </div>
           <Tool icon="popOut" label="새 창에서 열기" onClick={() => openApp.mutate({ id: app.id, mode: "window" })} />
-          <Tool icon="globe" label="기본 브라우저에서 열기" onClick={() => openApp.mutate({ id: app.id, mode: "browser" })} />
+          <Tool icon="globe" label={`${browserLabel(app)}에서 열기`} onClick={() => openApp.mutate({ id: app.id, mode: "browser" })} />
           <Tool
             icon="chevronUp"
             label="주소 표시줄 숨기기"

@@ -1,4 +1,4 @@
-import type { MyApp, MyAppInput } from "@/features/apps/apps";
+import type { BrowserChoice, MyApp, MyAppInput } from "@/features/apps/apps";
 
 /**
  * Contract between the renderer and the Electron main process for MyApps.
@@ -51,10 +51,12 @@ export type AppsMethods = {
    * null when cancelled. Only a path picked this way can be saved.
    */
   chooseProgram: () => { program: PickedProgram | null };
+  /** The browsers installed on this computer, to open a web app in one of them. */
+  listBrowsers: () => { browsers: BrowserChoice[] };
   /**
-   * Opens a web app in a window of its own or in the default browser (as
-   * set for it, or as `mode` says), or runs a program. Embedded apps are
-   * shown with `showView`.
+   * Opens a web app in a window of its own or in a browser (its own browser,
+   * or the default one), as set for it or as `mode` says; or runs a program.
+   * Embedded apps are shown with `showView`.
    */
   openApp: (input: { id: string; mode?: "window" | "browser" }) => null;
   /** Shows the app's embedded view at `bounds`, loading it the first time. */
@@ -82,6 +84,7 @@ export const APPS_METHODS = [
   "clearTrustedCerts",
   "chooseAppIcon",
   "chooseProgram",
+  "listBrowsers",
   "openApp",
   "showView",
   "setViewBounds",

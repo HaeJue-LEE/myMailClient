@@ -133,6 +133,7 @@ Mac에서 설치하기:
 
 - Google 키가 들어 있지 않습니다. Google 로그인(Gmail API)을 쓰려면 **메일 계정 추가 → Gmail (Google 로그인)**에 직접 만든 클라이언트 ID와 시크릿을 넣습니다(위 **준비** 참고). 앱 비밀번호로 IMAP 계정으로 추가해도 됩니다.
 - MyApps의 **이 컴퓨터의 프로그램**으로 맥 앱(`.app`)이나 터미널 스크립트(`.command`)를 고를 수 있습니다. 바로 가기는 Windows 전용입니다.
+- MyApps 웹앱을 **브라우저에서** 열 때, 응용 프로그램 폴더에 있는 Safari·Chrome·Firefox·Edge·Whale 등에서 열 브라우저를 고를 수 있습니다.
 - 설정과 계정은 `~/Library/Application Support/Mail Client`에 저장됩니다. Windows에서 쓰던 계정 파일은 옮겨도 열리지 않습니다.
 
 ## 구조
@@ -160,6 +161,7 @@ scripts/             Electron 번들 스크립트 (esbuild)
 - **화면은 Google 토큰을 받지 않습니다.** Gmail 호출은 메인 프로세스만 하고, 화면은 IPC로 결과만 받습니다.
 - **토큰은 Windows 사용자 계정으로 암호화됩니다.** Google 계정들의 리프레시 토큰은 `safeStorage`(DPAPI)로 암호화해 `%APPDATA%\Mail Client\google.bin`에 저장합니다.
 - **로그인은 시스템 브라우저에서 합니다.** Google이 앱 내장 브라우저 로그인을 차단하기 때문입니다.
+  MyApps 웹앱도 같아서, "Google로 로그인"이 필요한 사이트는 열기 방식을 **브라우저에서**로 두고 열 브라우저(기본 브라우저 또는 설치된 다른 브라우저)를 고릅니다. 로그인은 그 브라우저에 남습니다.
 - **메일 HTML은 신뢰하지 않습니다.** DOMPurify로 정화하고 CSP를 적용한 샌드박스 iframe에 표시하며, 링크는 기본 브라우저로 엽니다.
 
 ## 운영 시 주의사항

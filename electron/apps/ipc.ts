@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from "electron";
+import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { z, ZodError } from "zod";
 import { MAX_APPS, myAppInputSchema } from "@/features/apps/apps";
 import {
@@ -9,6 +9,7 @@ import {
   VIEW_ACTIONS,
 } from "@/features/apps/bridge";
 import { InvalidRequestError } from "../errors";
+import { checkBrowserChoice, listBrowsers, openAppInBrowser } from "./browsers";
 import { clearAppSession, forgetDeclined } from "./contents";
 import { chooseAppIcon } from "./icons";
 import { checkProgramPath, chooseProgram, launchProgram } from "./programs";
@@ -60,9 +61,10 @@ export function registerAppsHandlers(options: {
     listApps: { input: noInput, run: listApps },
     saveApp: {
       input: myAppInputSchema,
-      run: async (input) => {
-        const before = input.id ? await getApp(input.id) : null;
-        checkProgramPath(input, before);
+      run: async (raw) => {
+        const before = raw.id ? await getApp(raw.id) : null;
+        checkProgramPath(raw, before);
+        const input = await checkBrowserChoice(raw, before);
         const { saved, previous } = await saveApp(input);
         if (previous) {
           for (const item of options.allViews()) item.update(saved);
@@ -109,17 +111,22 @@ export function registerAppsHandlers(options: {
         program: await chooseProgram(BrowserWindow.fromWebContents(event.sender)),
       }),
     },
+    listBrowsers: {
+      input: noInput,
+      run: async () => ({ browsers: await listBrowsers() }),
+    },
     openApp: {
       input: z.object({ id, mode: z.enum(["window", "browser"]).optional() }),
       run: async ({ id: appId, mode }, event) => {
         const item = await getApp(appId);
+        const window = BrowserWindow.fromWebContents(event.sender);
         if (item.kind === "program") {
-          await launchProgram(item, BrowserWindow.fromWebContents(event.sender));
+          await launchProgram(item, window);
           return null;
         }
         const how = mode ?? item.openIn;
         forgetDeclined(appId);
-        if (how === "browser") await shell.openExternal(item.url);
+        if (how === "browser") await openAppInBrowser(item, window);
         else if (how === "window") openSiteWindow(item, options.icon);
         else throw new InvalidRequestError("Embedded apps are shown with showView");
         return null;

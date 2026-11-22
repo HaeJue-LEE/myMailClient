@@ -30,6 +30,7 @@ const app = (id: string, group: string): WebApp => ({
   pinned: false,
   icon: null,
   hideAddressBar: false,
+  browser: null,
   trustedCerts: [],
 });
 
@@ -219,6 +220,11 @@ describe("display", () => {
     expect(appTarget(app("a", ""))).toBe("nas.example.lan:5001");
     expect(appTarget(program)).toBe("example.exe");
     expect(openLabel({ ...app("a", ""), openIn: "window" })).toBe("새 창에서 열기");
+    expect(openLabel({ ...app("a", ""), openIn: "browser" })).toBe("기본 브라우저에서 열기");
+    const firefox = { path: "C:\Program Files\Mozilla Firefox\firefox.exe", name: "Firefox" };
+    expect(openLabel({ ...app("a", ""), openIn: "browser", browser: firefox })).toBe("Firefox에서 열기");
+    // Only the browser mode names the browser.
+    expect(openLabel({ ...app("a", ""), openIn: "window", browser: firefox })).toBe("새 창에서 열기");
     expect(openLabel(program)).toBe("프로그램 실행");
   });
 });

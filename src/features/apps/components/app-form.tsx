@@ -1,9 +1,10 @@
 "use client";
 
 import { useId, useState } from "react";
-import { AppsApiError, useChooseAppIcon, useChooseProgram, useSaveApp } from "@/features/apps/api";
+import { AppsApiError, useBrowsers, useChooseAppIcon, useChooseProgram, useSaveApp } from "@/features/apps/api";
 import {
   type AppKind,
+  type BrowserChoice,
   MAX_APP_NAME_LENGTH,
   MAX_GROUP_LENGTH,
   type MyApp,
@@ -27,8 +28,61 @@ const KIND_LABELS: Record<AppKind, string> = {
 const OPEN_MODE_NOTES: Record<OpenMode, string> = {
   embed: "메일과 같은 창 안에서 엽니다. 사이드바와 레일로 바로 오갈 수 있습니다.",
   window: "앱 전용 창을 엽니다. 메일과 나란히 놓고 쓰기 좋습니다.",
-  browser: "Chrome, Edge 같은 기본 브라우저에서 엽니다. 브라우저 확장이나 저장된 비밀번호가 필요할 때 쓰세요.",
+  browser:
+    "기본 브라우저나 고른 브라우저에서 엽니다. Google 로그인처럼 앱 안에서 막히는 로그인, 브라우저 확장, 저장된 비밀번호가 필요할 때 쓰세요. 로그인은 그 브라우저에 남습니다.",
 };
+
+/** The browser picker's value for the default browser. */
+const DEFAULT_BROWSER = "";
+
+/**
+ * Which browser a web app opens in: the default one, or one installed on
+ * this computer. The one saved stays listed even when it is not found any
+ * more, so editing the rest of the app does not lose it unnoticed.
+ */
+function BrowserPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: BrowserChoice | null;
+  onChange: (browser: BrowserChoice | null) => void;
+  disabled: boolean;
+}) {
+  const browsers = useBrowsers();
+  const found = browsers.data ?? [];
+  const missing = value && browsers.isSuccess && !found.some((item) => item.path === value.path) ? value : null;
+  const options = missing ? [...found, missing] : found.length || !value ? found : [value];
+  return (
+    <span className="mt-1.5 block">
+      <select
+        aria-label="열 브라우저"
+        value={value?.path ?? DEFAULT_BROWSER}
+        disabled={disabled}
+        onChange={(event) =>
+          onChange(options.find((item) => item.path === event.target.value) ?? null)
+        }
+        className={`${INPUT_CLASS} max-w-80 disabled:opacity-50`}
+      >
+        <option value={DEFAULT_BROWSER}>기본 브라우저</option>
+        {options.map((item) => (
+          <option key={item.path} value={item.path}>
+            {item === missing ? `${item.name} (찾을 수 없음)` : item.name}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1 block text-xs opacity-60">
+        {browsers.isPending
+          ? "설치된 브라우저를 찾는 중…"
+          : browsers.isError
+            ? "설치된 브라우저를 찾지 못했습니다. 기본 브라우저에서 엽니다."
+            : missing
+              ? `${missing.name}을(를) 이 컴퓨터에서 찾을 수 없습니다. 다른 브라우저를 골라 주세요.`
+              : "앱 안에서 열 때 위쪽의 '브라우저에서 열기' 버튼도 이 브라우저를 씁니다."}
+      </span>
+    </span>
+  );
+}
 
 /** Adds an app (no `app`) or edits one. */
 export function AppForm({
@@ -53,6 +107,7 @@ export function AppForm({
   // The icon taken from the last program picked, replaced when another one is.
   const [programIcon, setProgramIcon] = useState<string | null>(null);
   const [hideAddressBar, setHideAddressBar] = useState(web?.hideAddressBar ?? false);
+  const [browser, setBrowser] = useState<BrowserChoice | null>(web?.browser ?? null);
   const chooseIcon = useChooseAppIcon();
   const chooseProgram = useChooseProgram();
   const onMac = useOnMac();
@@ -99,7 +154,7 @@ export function AppForm({
         const common = { ...(app ? { id: app.id } : {}), name, group, pinned, icon };
         save.mutate(
           kind === "web"
-            ? { ...common, kind, url: fullUrl, openIn, hideAddressBar }
+            ? { ...common, kind, url: fullUrl, openIn, hideAddressBar, browser }
             : { ...common, kind, path },
           { onSuccess: onDone },
         );
@@ -277,9 +332,12 @@ export function AppForm({
                   onChange={() => setOpenIn(mode)}
                   className="mt-0.5 size-4 shrink-0"
                 />
-                <span>
+                <span className="min-w-0 flex-1">
                   {OPEN_MODE_LABELS[mode]}
                   <span className="block text-xs opacity-60">{OPEN_MODE_NOTES[mode]}</span>
+                  {mode === "browser" && (
+                    <BrowserPicker value={browser} onChange={setBrowser} disabled={save.isPending} />
+                  )}
                 </span>
               </label>
             ))}
