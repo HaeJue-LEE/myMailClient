@@ -31,6 +31,8 @@ const accountSchema = z.object({
   refreshToken: z.string().min(1),
 });
 export type ZohoAccount = z.infer<typeof accountSchema>;
+/** For checking accounts brought from another computer (see transfer/). */
+export { accountSchema as zohoAccountSchema };
 
 const fileSchema = z.object({
   client: zohoClientSchema.nullable().default(null),

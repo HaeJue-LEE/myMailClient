@@ -25,6 +25,8 @@ const accountSchema = z.object({
   refreshToken: z.string().min(1),
 });
 export type GoogleAccount = z.infer<typeof accountSchema>;
+/** For checking accounts brought from another computer (see transfer/). */
+export { accountSchema as googleAccountSchema };
 
 const fileSchema = z.object({ accounts: z.array(accountSchema).default([]) });
 type GoogleFile = z.infer<typeof fileSchema>;

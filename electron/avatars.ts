@@ -94,6 +94,14 @@ export async function chooseImage(window: BrowserWindow | null, title: string): 
   return image;
 }
 
+async function writeAvatar(accountId: string, image: NativeImage) {
+  await mkdir(avatarDir(), { recursive: true });
+  const target = avatarPath(accountId);
+  const temporary = `${target}.${randomUUID()}.tmp`;
+  await writeFile(temporary, toAvatar(image));
+  await rename(temporary, target);
+}
+
 /**
  * Asks for an image file and stores it as the account's picture. Returns
  * false when the dialog is cancelled; refuses files that are not images.
@@ -101,12 +109,29 @@ export async function chooseImage(window: BrowserWindow | null, title: string): 
 export async function chooseAvatar(window: BrowserWindow | null, accountId: string) {
   const image = await chooseImage(window, "계정 사진 선택");
   if (!image) return false;
+  await writeAvatar(accountId, image);
+  return true;
+}
 
-  await mkdir(avatarDir(), { recursive: true });
-  const target = avatarPath(accountId);
-  const temporary = `${target}.${randomUUID()}.tmp`;
-  await writeFile(temporary, toAvatar(image));
-  await rename(temporary, target);
+/** The account's picture as stored (PNG), to carry to another computer; null when none. */
+export async function readAvatarPng(accountId: string): Promise<Buffer | null> {
+  try {
+    return await readFile(avatarPath(accountId));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keeps a picture brought from another computer. It is decoded and stored
+ * again the usual way, so only a real image of the usual size is kept;
+ * false when it is not one.
+ */
+export async function importAvatar(accountId: string, png: Buffer): Promise<boolean> {
+  if (png.length > MAX_SOURCE_BYTES) return false;
+  const image = nativeImage.createFromBuffer(png);
+  if (image.isEmpty()) return false;
+  await writeAvatar(accountId, image);
   return true;
 }
 

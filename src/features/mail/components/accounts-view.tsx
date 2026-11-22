@@ -18,6 +18,7 @@ import { Icon } from "@/features/mail/components/icon";
 import { useDragReorder } from "@/features/mail/components/use-drag-reorder";
 import { MailAccountForm } from "@/features/mail/components/mail-account-form";
 import { AppUpdate } from "@/features/mail/components/app-update";
+import { SettingsTransfer } from "@/features/mail/components/settings-transfer";
 import type { Account } from "@/features/mail/mail-accounts";
 
 const KIND_LABEL: Record<Account["kind"], string> = {
@@ -146,6 +147,7 @@ export function AccountsView() {
           계정에서만 쓸 수 있습니다.
         </p>
 
+        <SettingsTransfer hasAccounts={list.length > 0} />
         <AppUpdate />
         <Shortcuts />
       </div>
@@ -263,9 +265,9 @@ function AccountRow({
         <p>
           <b>{account.email}</b> 계정을 이 앱에서 삭제할까요?{" "}
           {isGoogle
-            ? "Google 계정에서 로그아웃하며, 메일은 Gmail에 그대로 남습니다."
+            ? "Google 계정에서 로그아웃하며, 메일은 Gmail에 그대로 남습니다. 설정을 옮긴 다른 컴퓨터도 같은 로그인을 쓰므로 그쪽에서도 다시 로그인해야 합니다."
             : account.kind === "zoho"
-              ? "Zoho 로그인을 해제하며, 메일은 Zoho 메일에 그대로 남습니다."
+              ? "Zoho 로그인을 해제하며, 메일은 Zoho 메일에 그대로 남습니다. 설정을 옮긴 다른 컴퓨터도 같은 로그인을 쓰므로 그쪽에서도 다시 로그인해야 합니다."
             : "저장된 서버 설정과 비밀번호가 지워지며, 메일은 서버에 그대로 남습니다."}
         </p>
         {remove.isError && (

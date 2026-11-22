@@ -28,6 +28,21 @@ export async function forGoogleAccount<T>(accountId: string, work: () => Promise
 /** A well-formed request the app still refuses, e.g. an unverified From address. */
 export class InvalidRequestError extends Error {}
 
+/** A settings file (see transfer/bundle.ts) that cannot be opened, and why. */
+export class SettingsFileError extends Error {
+  constructor(
+    readonly code:
+      /** Not a settings file, or damaged beyond its encryption. */
+      | "not_settings_file"
+      /** Made by a later version of the app. */
+      | "newer_settings_file"
+      /** The passphrase is wrong, or the encrypted part was changed. */
+      | "wrong_passphrase",
+  ) {
+    super(code);
+  }
+}
+
 /**
  * A failure talking to an IMAP, SMTP, or Zoho Mail server, already reduced to
  * a code the renderer may see. Unlike a dead Google grant, it never signs
@@ -117,6 +132,7 @@ export function toErrorCode(
   isLoginCancelled: (error: unknown) => boolean,
 ): MailErrorCode {
   if (error instanceof MailServerError) return error.code;
+  if (error instanceof SettingsFileError) return error.code;
   if (isAuthFailure(error)) return "unauthorized";
   if (isLoginCancelled(error)) return "login_cancelled";
   if (error instanceof ZodError || error instanceof InvalidRequestError) {

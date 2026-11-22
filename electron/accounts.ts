@@ -56,6 +56,14 @@ export type MailAccountCredentials = Omit<StoredAccount, "password"> & {
 };
 
 /**
+ * An account as carried to another computer (see transfer/): its password in
+ * the clear, or null when it could not be decrypted here.
+ */
+export type PortableMailAccount = Omit<StoredAccount, "password"> & {
+  password: string | null;
+};
+
+/**
  * The earlier single-configuration file (`server-settings.json`), keyed by the
  * Google address. Its IMAP entries become accounts so nothing saved is lost.
  */
@@ -220,6 +228,34 @@ export async function storeMailAccount(
   else file.accounts.push(stored);
   await persist(file);
   return toSettings(stored);
+}
+
+/** Every account with its password decrypted, to carry to another computer. Main process only. */
+export async function exportMailAccounts(): Promise<PortableMailAccount[]> {
+  return (await load()).accounts.map((stored) => ({ ...stored, password: decrypt(stored.password) }));
+}
+
+/**
+ * Adds an account brought from another computer, or replaces the one with
+ * the same id. Without a password it is kept anyway, waiting for one to be
+ * entered (edit the account), as when the password cannot be decrypted.
+ */
+export async function importMailAccount(account: PortableMailAccount): Promise<void> {
+  const file = await load();
+  const { password, ...settings } = account;
+  const email = settings.email.toLowerCase();
+  if (file.accounts.some((item) => item.email === email && item.id !== settings.id)) {
+    throw new InvalidRequestError("This address is already added");
+  }
+  const stored: StoredAccount = {
+    ...settings,
+    email,
+    ...(password ? { password: encrypt(password) } : {}),
+  };
+  const index = file.accounts.findIndex((item) => item.id === stored.id);
+  if (index >= 0) file.accounts[index] = stored;
+  else file.accounts.push(stored);
+  await persist(file);
 }
 
 /** Removes the account, its stored password included. */

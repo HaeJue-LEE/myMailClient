@@ -23,6 +23,7 @@ import {
   recentContacts,
 } from "@/features/mail/contacts";
 import type { MailList } from "@/features/mail/routes";
+import type { ImportChoices } from "@/features/mail/settings-transfer";
 import { threadListRequest } from "@/features/mail/search";
 import { type MailAccountInput, sortAccounts } from "@/features/mail/mail-accounts";
 import type { Contact, ThreadPage } from "@/features/mail/types";
@@ -242,7 +243,8 @@ export function useAccounts() {
  * Query keys are not scoped by account, so changing the account in use is a
  * full navigation: it drops the old account's cached mail, labels, and contacts.
  */
-function reloadMail() {
+/** Goes to the mail of the account in use, dropping everything cached for the one before. */
+export function reloadMail() {
   // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.assign("/mail");
 }
@@ -734,5 +736,41 @@ export function useThreadAction() {
         queryClient.invalidateQueries({ queryKey: ["threads"] }),
         queryClient.invalidateQueries({ queryKey: ["thread"] }),
       ]),
+  });
+}
+
+/** Saves every account to a settings file, locked with a passphrase (see settings-transfer.ts). */
+export function useExportSettings() {
+  return useMutation({
+    mutationFn: (input: { passphrase: string; includeSecrets: boolean }) =>
+      unwrap(bridge().exportSettings(input)),
+  });
+}
+
+/** Asks for a settings file to import; null when the dialog is cancelled. */
+export function useChooseSettingsFile() {
+  return useMutation({
+    mutationFn: () => unwrap(bridge().chooseSettingsFile()),
+  });
+}
+
+/** Opens the picked settings file with its passphrase: what importing it would do. */
+export function useOpenSettingsFile() {
+  return useMutation({
+    mutationFn: (input: { token: string; passphrase: string }) =>
+      unwrap(bridge().openSettingsFile(input)),
+  });
+}
+
+/** Imports the opened settings file; the accounts and what the app can do change with it. */
+export function useImportSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { token: string; choices: ImportChoices }) =>
+      unwrap(bridge().importSettings(input)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: accountsKey });
+      void queryClient.invalidateQueries({ queryKey: appFeaturesKey });
+    },
   });
 }

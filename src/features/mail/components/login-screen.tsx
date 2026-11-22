@@ -7,13 +7,18 @@ import { APPS_HREF } from "@/features/apps/routes";
 import { MailApiError, useAccount, useAppFeatures, useLogin } from "@/features/mail/api";
 import { MailAccountForm } from "@/features/mail/components/mail-account-form";
 import { Unavailable } from "@/features/mail/components/mail-shell";
+import { SettingsImport } from "@/features/mail/components/settings-transfer";
 
-/** Shown while no account exists: sign in to Google (if this build can), or add a mail account. */
+/**
+ * Shown while no account exists: sign in to Google (once a client is
+ * entered), add a mail account, or bring the accounts of another computer in.
+ */
 export function LoginScreen() {
   const router = useRouter();
   const { data: account, error: accountError } = useAccount();
   const { mutate: login, isPending, error } = useLogin();
   const [addingMailAccount, setAddingMailAccount] = useState(false);
+  const [importing, setImporting] = useState(false);
   // Builds without a Google OAuth client offer mail accounts only.
   const googleSignIn = useAppFeatures().data?.googleSignIn ?? false;
 
@@ -23,6 +28,17 @@ export function LoginScreen() {
 
   if (accountError instanceof MailApiError && accountError.code === "unavailable") {
     return <Unavailable />;
+  }
+
+  if (importing) {
+    return (
+      <main className="mx-auto w-full max-w-3xl flex-1 space-y-4 overflow-y-auto p-6">
+        <h1 className="text-2xl font-semibold">Mail Client</h1>
+        <h2 className="text-sm font-semibold">다른 컴퓨터에서 설정 가져오기</h2>
+        {/* Importing ends with a full navigation to the mail view. */}
+        <SettingsImport onCancel={() => setImporting(false)} />
+      </main>
+    );
   }
 
   if (addingMailAccount) {
@@ -74,6 +90,13 @@ export function LoginScreen() {
           }
         >
           {googleSignIn ? "네이버 등 다른 메일 계정 추가" : "메일 계정 추가"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setImporting(true)}
+          className="rounded-md border border-foreground/20 px-4 py-2 text-sm font-medium hover:bg-foreground/5"
+        >
+          다른 컴퓨터에서 설정 가져오기
         </button>
       </div>
       {/* MyApps needs no mail account. */}

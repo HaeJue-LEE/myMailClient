@@ -11,6 +11,11 @@ import type {
   MailAccountSettings,
 } from "@/features/mail/mail-accounts";
 import type { ScheduledMail } from "@/features/mail/scheduled";
+import type {
+  ImportChoices,
+  ImportPreview,
+  ImportResult,
+} from "@/features/mail/settings-transfer";
 import type { ZohoRegion } from "@/features/mail/zoho";
 
 /** Contract between the renderer and the Electron main process. */
@@ -37,6 +42,12 @@ export type MailErrorCode =
   | "smtp_connection_failed"
   /** The mail server refused the request, e.g. a recipient or a missing folder. */
   | "server_error"
+  /** A settings file to import is not one, or damaged. */
+  | "not_settings_file"
+  /** A settings file made by a later version of the app. */
+  | "newer_settings_file"
+  /** The settings file's passphrase is wrong. */
+  | "wrong_passphrase"
   | "internal_error";
 
 export type IpcResult<T> =
@@ -178,7 +189,7 @@ export type MailMethods = {
   getAppFeatures: () => AppFeatures;
   /**
    * Keeps a Google OAuth client the user created (desktop app type) for
-   * Google sign-in, encrypted on this computer. Refused when one is built in.
+   * Google sign-in, encrypted on this computer.
    */
   saveGoogleClient: (input: { clientId: string; clientSecret: string }) => AppFeatures;
   /** Forgets the entered client; a Google account signed in with it is signed out. */
@@ -339,6 +350,22 @@ export type MailMethods = {
   getHiddenContacts: () => string[];
   /** Hides or shows addresses; returns the updated hidden list. */
   setContactsHidden: (input: { emails: string[]; hidden: boolean }) => string[];
+  /**
+   * Saves every account to a settings file the user picks, locked with
+   * `passphrase`; opens on Windows and macOS alike. With `includeSecrets`
+   * passwords, sign-ins and clients go too; without, only the IMAP/POP3
+   * accounts' settings. `saved` is false when the dialog is cancelled.
+   */
+  exportSettings: (input: { passphrase: string; includeSecrets: boolean }) => {
+    saved: boolean;
+    accounts: number;
+  };
+  /** Asks for a settings file to import and holds it; null when cancelled. */
+  chooseSettingsFile: () => { token: string; fileName: string } | null;
+  /** Opens the file picked with its passphrase and says what importing it would do. */
+  openSettingsFile: (input: { token: string; passphrase: string }) => ImportPreview;
+  /** Imports the opened file as the user chose. */
+  importSettings: (input: { token: string; choices: ImportChoices }) => ImportResult;
 };
 
 export type MailApi = {
@@ -398,6 +425,10 @@ export const MAIL_METHODS = [
   "deleteContact",
   "getHiddenContacts",
   "setContactsHidden",
+  "exportSettings",
+  "chooseSettingsFile",
+  "openSettingsFile",
+  "importSettings",
 ] as const satisfies readonly (keyof MailMethods)[];
 
 export const channelOf = (method: keyof MailMethods) => `mail:${method}`;

@@ -22,6 +22,11 @@ import {
 } from "@/features/mail/mail-accounts";
 import { MAX_SEARCH_LENGTH } from "@/features/mail/routes";
 import {
+  MAX_PASSPHRASE_LENGTH,
+  MIN_PASSPHRASE_LENGTH,
+  passphraseLength,
+} from "@/features/mail/settings-transfer";
+import {
   getActiveId,
   getMailAccount,
   removeMailAccount,
@@ -91,6 +96,12 @@ import {
   openUpdatePage,
   restartToUpdate,
 } from "./updater";
+import {
+  chooseSettingsFile,
+  exportSettings,
+  importSettings,
+  openSettingsFile,
+} from "./transfer/transfer";
 import { revokeZoho, signInZoho } from "./zoho/auth";
 import { dropZohoCaches } from "./zoho/backend";
 import {
@@ -128,6 +139,10 @@ const threadIds = z.array(id).min(1).max(100);
 const personResource = z.string().regex(PERSON_RESOURCE);
 /** Enough for a whole address book in one go, but bounded. */
 const MAX_HIDE_BATCH = 5000;
+/** Opening takes the passphrase a file was made with; a new one must be long enough. */
+const passphrase = z.string().min(1).max(MAX_PASSPHRASE_LENGTH);
+const newPassphrase = passphrase.refine((value) => passphraseLength(value) >= MIN_PASSPHRASE_LENGTH);
+const settingsToken = z.string().uuid();
 
 const backend = async () => (await requireBackend()).backend;
 
@@ -579,6 +594,30 @@ export function registerMailHandlers(options: {
         await withAddressBook(({ auth }) => deleteContact(auth, resourceName));
         return null;
       },
+    },
+    exportSettings: {
+      input: z.object({ passphrase: newPassphrase, includeSecrets: z.boolean() }),
+      run: async ({ passphrase, includeSecrets }, event) =>
+        exportSettings(BrowserWindow.fromWebContents(event.sender), passphrase, { includeSecrets }),
+    },
+    chooseSettingsFile: {
+      input: noInput,
+      run: async (_, event) => chooseSettingsFile(BrowserWindow.fromWebContents(event.sender)),
+    },
+    openSettingsFile: {
+      input: z.object({ token: settingsToken, passphrase }),
+      run: async ({ token, passphrase }) => openSettingsFile(token, passphrase),
+    },
+    importSettings: {
+      input: z.object({
+        token: settingsToken,
+        choices: z.object({
+          overwrite: z.array(accountId).max(1500),
+          replaceGoogleClient: z.boolean(),
+          replaceZohoClient: z.boolean(),
+        }),
+      }),
+      run: async ({ token, choices }) => importSettings(token, choices),
     },
   };
   for (const [method, handler] of Object.entries(handlers)) {
